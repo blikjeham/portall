@@ -73,14 +73,14 @@ int channel_recv(struct channel *channel)
 	char buffer[256];
 	bytes = recv(channel->fd, buffer, 256, 0);
 	printf("received %zu bytes\n", bytes);
-	channel->flags &= ~EV_INPUT;
+	channel->flags &= ~CHAN_RECV;
 	channel->pf->events = 0;
 	return bytes;
 }
 
 int channel_send(struct channel *channel)
 {
-	channel->flags &= ~EV_OUTPUT;
+	channel->flags &= ~CHAN_SEND;
 	channel->pf->events = 0;
 	return 0;
 }
@@ -151,10 +151,10 @@ int dispatch(struct channel *deque)
 	struct channel *channel;
 
 	for_each_channel(deque, channel) {
-		printf("flags: %02x\n", channel->flags);
+		printf("fd: %d flags: %02x\n", channel->fd, channel->flags);
 		if (channel->flags & CHAN_CLOSE) {
 			channel = channel_close(channel);
-			break;
+			continue;
 		}
 
 		if (channel->flags & CHAN_ACCEPT)
@@ -194,19 +194,14 @@ int poll_events(struct channel *deque)
 			continue;
 		}
 
-		switch (pf[i].revents & EV_ALL) {
-		case EV_HUP:
+		if (pf[i].revents & EV_HUP) {
 			channel->flags |= CHAN_CLOSE;
-			/* should close channel */
-			break;
-		case EV_INPUT:
-			channel->flags |= channel->accept ? CHAN_ACCEPT : CHAN_RECV;
-		case EV_OUTPUT:
-			channel->flags |= CHAN_SEND;
-			break;
-		default:
-			break;
+			continue;
 		}
+		if (pf[i].revents & EV_INPUT)
+			channel->flags |= channel->accept ? CHAN_ACCEPT : CHAN_RECV;
+		if (pf[i].revents & EV_OUTPUT)
+			channel->flags |= CHAN_SEND;
 	}
 
 	return ret;
