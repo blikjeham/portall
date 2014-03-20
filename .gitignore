@@ -1,3 +1,6 @@
+# Main program
+multicat
+
 # Object files
 *.o
 *.ko
