@@ -16,6 +16,7 @@
 #define CHAN_RECV 0x04
 #define CHAN_SEND 0x08
 #define CHAN_ALL (CHAN_CLOSE|CHAN_ACCEPT|CHAN_RECV|CHAN_SEND)
+#define CHAN_TAGGED 0x10
 
 #define EV_HUP (POLLHUP)
 #define EV_INPUT (POLLIN)
@@ -33,6 +34,7 @@ struct channel {
 	short int protocol;
 	int flags;
 	int accept;
+	int index;
 
 	union uaddr address;
 
@@ -54,7 +56,10 @@ struct channel {
 					  ptr != deque; \
 					  ptr = channel_of(ptr->list.next))
 
-int new_tcp_listener(struct channel *, char *, uint16_t );
+struct channel *new_udp_listener(struct channel *, char *, uint16_t );
+struct channel *new_tcp_listener(struct channel *, char *, uint16_t );
+struct channel *new_connecter(struct channel *, char *, uint16_t , int );
+struct channel *connecter(struct channel *, char *, uint16_t );
 
 int dispatch(struct channel *);
 int poll_events(struct channel *);

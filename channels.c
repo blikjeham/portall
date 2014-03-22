@@ -12,6 +12,7 @@
 
 struct pollfd pf[MAX_CONN];
 struct channel *channel_of_pf[MAX_CONN];
+struct channel *deque;
 uint nfds;
 unsigned int idle;
 
@@ -36,7 +37,7 @@ static void set_port(struct channel *channel, uint16_t port)
 		channel->address.v4.sin_port = htons(port);
 }
 
-int channel_accept(struct channel *channel)
+static int channel_accept(struct channel *channel)
 {
 	socklen_t len;
 	struct channel *new = malloc(sizeof(struct channel));
@@ -62,12 +63,13 @@ int channel_accept(struct channel *channel)
 	pf[nfds].fd = new->fd;
 	pf[nfds].events = EV_INPUT | EV_OUTPUT;
 	new->pf = &pf[nfds];
+	new->index = nfds;
 	channel_of_pf[nfds] = new;
 	nfds++;
 	return 0;
 }
 
-int channel_recv(struct channel *channel)
+static int channel_recv(struct channel *channel)
 {
 	size_t bytes = 0;
 	char buffer[256];
@@ -78,20 +80,21 @@ int channel_recv(struct channel *channel)
 	return bytes;
 }
 
-int channel_send(struct channel *channel)
+static int channel_send(struct channel *channel)
 {
 	channel->flags &= ~CHAN_SEND;
 	channel->pf->events = 0;
 	return 0;
 }
 
-struct channel *channel_close(struct channel *channel)
+static struct channel *channel_close(struct channel *channel)
 {
 	/* should properly close the channel */
 	return channel_of(channel->list.next);
 }
 
-int new_tcp_listener(struct channel *deque, char *ip, uint16_t port)
+static struct channel *new_listener(struct channel *deque, char *ip,
+			     uint16_t port, int mode)
 {
 	int new_sock = 0;
 	int f_opt;
@@ -99,19 +102,20 @@ int new_tcp_listener(struct channel *deque, char *ip, uint16_t port)
 
 	struct channel *channel = malloc(sizeof(struct channel));
 	channel_init(channel);
+
 	set_ip(channel, ip);
 	set_port(channel, port);
 
-	if ((new_sock = socket(channel->af, SOCK_STREAM, 0)) == -1) {
+	if ((new_sock = socket(channel->af, mode, 0)) == -1) {
 		perror("socket()");
-		return -1;
+		return NULL;
 	}
 
 	f_opt = fcntl(new_sock, F_GETFL, 0);
 	f_opt |= O_NONBLOCK;
 	if (fcntl(new_sock, F_SETFL, f_opt)) {
 		perror("fcntl()");
-		return -1;
+		return NULL;
 	}
 
 	if (channel->af == AF_INET6) {
@@ -124,26 +128,91 @@ int new_tcp_listener(struct channel *deque, char *ip, uint16_t port)
 
 	if (ret < 0) {
 		perror("bind()");
-		return -1;
-	}
-
-	if (listen(new_sock, 0) < 0) {
-		perror("listen()");
-		return -1;
+		return NULL;
 	}
 
 	list_append(&deque->list, &channel->list);
 	channel->fd = new_sock;
-	channel->accept = 1;
 	channel->flags = 0;
-	channel->protocol = PROTO_TCP;
 	pf[nfds].fd = channel->fd;
-	channel_of_pf[nfds] = channel;
 	pf[nfds].events = EV_INPUT | EV_OUTPUT;
 	pf[nfds].revents = 0;
+	channel_of_pf[nfds] = channel;
 	channel->pf = &pf[nfds];
+	channel->index = nfds;
 	nfds++;
-	return new_sock;
+	return channel;
+}
+
+struct channel *new_udp_listener(struct channel *deque, char *ip, uint16_t port)
+{
+	struct channel *channel;
+	if (!(channel = new_listener(deque, ip, port, SOCK_DGRAM)))
+		return NULL;
+
+	channel->protocol = PROTO_UDP;
+	channel->accept = 0;
+	return channel;
+}
+
+struct channel *new_tcp_listener(struct channel *deque, char *ip, uint16_t port)
+{
+	struct channel *channel;
+
+	if (!(channel = new_listener(deque, ip, port, SOCK_STREAM)))
+		return NULL;
+
+	if (listen(channel->fd, 0) < 0) {
+		perror("listen()");
+		return NULL;
+	}
+
+	channel->protocol = PROTO_TCP;
+	channel->accept = 1;
+	return channel;
+}
+
+struct channel *new_connecter(struct channel *deque, char *ip, uint16_t port,
+			      int mode)
+{
+	struct channel *channel = malloc(sizeof(struct channel));
+	int ret = 0;
+	int proto = (mode == PROTO_TCP) ? SOCK_STREAM : SOCK_DGRAM;
+
+	channel_init(channel);
+	set_ip(channel, ip);
+	set_port(channel, port);
+
+	if ((ret = socket(channel->af, proto, 0)) == -1) {
+		perror("socket()");
+		return NULL;
+	}
+	channel->fd = ret;
+	if (channel->af == AF_INET6) {
+		ret = connect(channel->fd,
+			      (struct sockaddr *)&channel->address.v6,
+			      sizeof(struct sockaddr));
+	} else {
+		ret = connect(channel->fd,
+			      (struct sockaddr *)&channel->address.v4,
+			      sizeof(struct sockaddr));
+	}
+
+	if (ret < 0) {
+		perror("connect()");
+		return NULL;
+	}
+
+	list_append(&deque->list, &channel->list);
+	channel->flags = 0;
+	pf[nfds].fd = channel->fd;
+	pf[nfds].events = EV_INPUT | EV_OUTPUT;
+	pf[nfds].revents = 0;
+	channel_of_pf[nfds] = channel;
+	channel->pf = &pf[nfds];
+	channel->index = nfds;
+	nfds++;
+	return channel;
 }
 
 int dispatch(struct channel *deque)
