@@ -20,8 +20,7 @@ DEPS = list.h
 DEPS += channels.h
 DEPS += conf.h
 
-OBJ = list.o
-OBJ += channels.o
+OBJ = channels.o
 OBJ += conf.o
 
 MCOBJ = main.o $(OBJ)
