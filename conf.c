@@ -5,11 +5,18 @@
 #include <netinet/in.h>
 #include "conf.h"
 #include "channels.h"
+#include "logging.h"
 
 struct conf_input *deq_input;
 struct conf_output *deq_output;
 struct conf_tunnel *tunnel;
 extern struct channel *deque;
+extern int loglevel;
+
+#define DB(fmt, args...) debug(3, "[conf]: " fmt, ##args)
+#define DBINFO(fmt, args...) debug(2, "[conf]: " fmt, ##args)
+#define DBWARN(fmt, args...) debug(1, "[conf]: " fmt, ##args)
+#define DBERR(fmt, args...) debug(0, "[conf]: " fmt, ##args)
 
 static int help(void)
 {
@@ -19,13 +26,21 @@ static int help(void)
 
 static int create_output(struct conf_output *output)
 {
+	DBINFO("Creating new %s output channel on %s:%u\n",
+	       output->protocol == PROTO_TCP ? "TCP" : "UDP",
+	       output->src, output->sport);
 	output->channel = new_connecter(deque, output->dst, output->dport,
 					output->protocol);
+	if (!output->channel)
+		return -1;
 	return 0;
 }
 
 static int create_input(struct conf_input *input)
 {
+	DBINFO("Creating new %s input channel on %s:%u\n",
+	       input->protocol == PROTO_TCP ? "TCP" : "UDP",
+	       input->ip, input->port);
 	if (input->protocol == PROTO_TCP)
 		input->channel = new_tcp_listener(deque, input->ip,
 						  input->port);
@@ -40,15 +55,19 @@ static int create_input(struct conf_input *input)
 int create_tunnel(struct conf_tunnel *tunnel)
 {
 	if (tunnel->remote) {
+		DBINFO("Connecting to tunnel %s:%u\n", tunnel->ip,
+		       tunnel->port);
 		tunnel->channel = new_connecter(deque, tunnel->ip,
 						tunnel->port,
 						PROTO_TCP);
 	} else {
+		DBINFO("Listening for tunnel %s:%u\n", tunnel->ip,
+		       tunnel->port);
 		tunnel->channel = new_tcp_listener(deque, tunnel->ip,
 						   tunnel->port);
 	}
 	if (tunnel->channel == NULL) {
-		printf("Tunnel failed\n");
+		DBERR("Tunnel failed\n");
 		return -1;
 	}
 	return 0;
@@ -69,7 +88,7 @@ int create_sockets(void)
 	}
 
 	if (!tunnel) {
-		printf("No tunnel configured\n");
+		DBERR("No tunnel configured\n");
 		return -1;
 	}
 	if ((ret = create_tunnel(tunnel)) < 0)
@@ -161,8 +180,6 @@ static int parse_input(char *line)
 		return 1;
 	}
 
-	printf("ip: %s, port %u, proto %d\n", new->ip, new->port,
-	       new->protocol);
 	list_append(&deq_input->list, &new->list);
 	return 0;
 }
@@ -269,6 +286,23 @@ static int parse_file(char *filename)
 	return section;
 }
 
+int parse_short(char *arg)
+{
+	char *s = arg + 1;
+
+	while (*s != '\0') {
+		switch (*s) {
+		case 'v':
+			loglevel++;
+			break;
+		default:
+			return 1;
+		}
+		s++;
+	}
+	return 0;
+}
+
 int get_config_files(int argc, char **argv)
 {
 	int i;
@@ -283,6 +317,12 @@ int get_config_files(int argc, char **argv)
 	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--help") || ! strcmp(argv[i], "-h"))
 			return help();
+		if (argv[i][0] == '-') {
+			if (parse_short(argv[i]))
+				return help();
+			else
+				continue;
+		}
 		if ((ret = stat(argv[i], file_stats)) < 0) {
 			printf("File does not exist %s\n", argv[i]);
 			continue;

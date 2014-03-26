@@ -1,13 +1,18 @@
 #include <stdlib.h>
 #include "channels.h"
 #include "conf.h"
+#include "logging.h"
+
+extern int loglevel;
 
 int main(int argc, char **argv)
 {
-	struct channel *ret;
 	extern unsigned int idle;
 	extern int nfds;
 	extern struct channel *deque;
+
+	loglevel = 0;
+
 	deque = malloc(sizeof(struct channel));
 	channel_init(deque);
 

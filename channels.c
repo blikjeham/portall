@@ -9,12 +9,18 @@
 #include <poll.h>
 #include "channels.h"
 #include "list.h"
+#include "logging.h"
 
 struct pollfd pf[MAX_CONN];
 struct channel *channel_of_pf[MAX_CONN];
 struct channel *deque;
 uint nfds;
 unsigned int idle;
+
+#define DB(fmt, args...) debug(3, "[chan]: " fmt, ##args)
+#define DBINFO(fmt, args...) debug(2, "[chan]: " fmt, ##args)
+#define DBWARN(fmt, args...) debug(1, "[chan]: " fmt, ##args)
+#define DBERR(fmt, args...) debug(0, "[chan]: " fmt, ##args)
 
 static void set_ip(struct channel *channel, char *ip)
 {
@@ -74,7 +80,7 @@ static int channel_recv(struct channel *channel)
 	size_t bytes = 0;
 	char buffer[256];
 	bytes = recv(channel->fd, buffer, 256, 0);
-	printf("received %zu bytes\n", bytes);
+	DB("received %zu bytes\n", bytes);
 	channel->flags &= ~CHAN_RECV;
 	channel->pf->events = 0;
 	return bytes;
@@ -220,7 +226,6 @@ int dispatch(struct channel *deque)
 	struct channel *channel;
 
 	for_each_channel(deque, channel) {
-		printf("fd: %d flags: %02x\n", channel->fd, channel->flags);
 		if (channel->flags & CHAN_CLOSE) {
 			channel = channel_close(channel);
 			continue;
@@ -249,7 +254,7 @@ int poll_events(struct channel *deque)
 
 	if (ret <= 0) {
 		idle++;
-		printf("idle %d\n", idle);
+		DB("idle %d\n", idle);
 		return 0;
 	}
 
@@ -259,7 +264,7 @@ int poll_events(struct channel *deque)
 			continue;
 
 		if ((channel = channel_of_pf[i]) == NULL) {
-			printf("Cannot find channel for fd %d\n", pf[i].fd);
+			DBWARN("Cannot find channel for fd %d\n", pf[i].fd);
 			continue;
 		}
 
