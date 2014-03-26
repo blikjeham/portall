@@ -25,15 +25,15 @@ OBJ += conf.o
 
 MCOBJ = main.o $(OBJ)
 
-all: multicat
+all: portall
 
 %.o: %.c $(DEPS)
 	$(COMPILE) -c -o $@ $<
 
-multicat: $(MCOBJ)
+portall: $(MCOBJ)
 	$(LINK) -o $@ $^ $(LDFLAGS)
 
 clean:
-	@rm -v -f *.o *~ multicat
+	@rm -v -f *.o *~ portall
 
 .PHONY: clean
