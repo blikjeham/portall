@@ -35,6 +35,22 @@ static void set_ip(struct channel *channel, char *ip)
 	}
 }
 
+/* XXX: need to fix the addr foo */
+static char *addrstr(struct psockaddr *addr)
+{
+	DB("AF = %d", addr->af);
+	DB("naddr = %lu", addr->addr.v4.sin_addr.s_addr);
+	if (addr->af == AF_INET6) {
+		inet_ntop(addr->af, &addr->addr.v6.sin6_addr,
+			  addr->addrstr, INET6_ADDRSTRLEN);
+	} else {
+		inet_ntop(addr->af, &addr->addr.v4.sin_addr,
+			  addr->addrstr, INET_ADDRSTRLEN);
+	}
+	DB("address = %s", addr->addrstr);
+	return addr->addrstr;
+}
+
 static void set_port(struct channel *channel, uint16_t port)
 {
 	if (channel->af == AF_INET6)
@@ -43,11 +59,98 @@ static void set_port(struct channel *channel, uint16_t port)
 		channel->address.v4.sin_port = htons(port);
 }
 
+static int udp_recv(struct channel *channel)
+{
+	size_t bytes = 0;
+	pbuffer *b = channel->buffer;
+	struct psockaddr *src = malloc(sizeof(struct psockaddr));
+	socklen_t len;
+
+	len = sizeof(src);
+	src->af = AF_INET;
+	DB("recvfrom");
+	/* XXX: need to fix the addr foo */
+	while ((bytes = recvfrom(channel->fd, pbuffer_end(b), b->allocated,
+				 MSG_PEEK,
+				 (struct sockaddr *)&(src->addr.v4.sin_addr),
+				 &len)) >= b->allocated) {
+		if (bytes == -1) {
+			perror("recvfrom()");
+			return -1;
+		}
+		pbuffer_assure(b, (bytes * 2) | PBUFFER_MIN);
+	}
+	bytes = recvfrom(channel->fd, pbuffer_end(b), b->allocated, 0,
+			 (struct sockaddr *)&(src->addr.v4.sin_addr), &len);
+	if (bytes == 0) {
+		channel->flags = CHAN_CLOSE;
+		return 0;
+	}
+	DB("len = %d", len);
+	DB("%p", src);
+	b->length += bytes;
+	DB("received %zu bytes from %s", bytes, addrstr(src));
+	return bytes;
+}
+
+static int tcp_recv(struct channel *channel)
+{
+	size_t bytes = 0;
+	pbuffer *b = channel->buffer;
+
+	DB("recv");
+	while ((bytes = recv(channel->fd, pbuffer_end(b), b->allocated, MSG_PEEK))
+	       >= b->allocated) {
+		if (bytes == -1) {
+			perror("recv()");
+			return -1;
+		}
+		pbuffer_assure(b, (bytes * 2) | PBUFFER_MIN);
+	}
+	bytes = recv(channel->fd, pbuffer_end(b), b->allocated, 0);
+	if (bytes == 0) {
+		channel->flags = CHAN_CLOSE;
+		return 0;
+	}
+	b->length += bytes;
+	DB("received %zu more bytes", bytes);
+	return bytes;
+}
+
+static int channel_recv(struct channel *channel)
+{
+	int ret = 0;
+	pbuffer *b = channel->buffer;
+	DB("recv");
+	if (channel->on_recv) {
+		ret = channel->on_recv(channel);
+	} else {
+		DB("No callback");
+	}
+	hexdump(3, (unsigned char *)b->data, b->length);
+
+	channel->flags &= ~CHAN_RECV;
+	channel->pf->events |= EV_INPUT;
+
+	return ret;
+}
+
+static int channel_send(struct channel *channel)
+{
+	int ret = 0;
+	channel->flags &= ~CHAN_SEND;
+	channel->pf->events &= ~EV_OUTPUT;
+	if (channel->on_send)
+		ret = channel->on_send(channel);
+	return ret;
+}
+
 static int channel_accept(struct channel *channel)
 {
 	socklen_t len;
 	struct channel *new = malloc(sizeof(struct channel));
 
+	DB("Accepting channel");
 	channel_init(new);
 	if(channel->af == AF_INET6) {
 		len = sizeof(struct sockaddr_in6);
@@ -63,8 +166,10 @@ static int channel_accept(struct channel *channel)
 		return -1;
 	}
 
+	DB("New fd is %d", new->fd);
 	channel->flags &= ~CHAN_ACCEPT;
 	new->flags = 0;
+	new->on_recv = tcp_recv;
 	list_append(&channel->list, &new->list);
 	pf[nfds].fd = new->fd;
 	pf[nfds].events = EV_INPUT | EV_OUTPUT;
@@ -75,28 +180,36 @@ static int channel_accept(struct channel *channel)
 	return 0;
 }
 
-static int channel_recv(struct channel *channel)
+static void remove_pf(int index)
 {
-	size_t bytes = 0;
-	char buffer[256];
-	bytes = recv(channel->fd, buffer, 256, 0);
-	DB("received %zu bytes\n", bytes);
-	channel->flags &= ~CHAN_RECV;
-	channel->pf->events = 0;
-	return bytes;
+	int last = nfds - 1;
+	struct channel *channel;
+	if (index != last) {
+		pf[index].fd = pf[last].fd;
+		pf[index].events = pf[last].events;
+		pf[index].revents = pf[last].revents;
+		channel_of_pf[index] = channel_of_pf[last];
+		channel = channel_of_pf[index];
+		channel->index = index;
+	}
+	nfds--;
+	return;
 }
 
-static int channel_send(struct channel *channel)
+static void channel_free(struct channel *channel)
 {
-	channel->flags &= ~CHAN_SEND;
-	channel->pf->events = 0;
+	pbuffer_free(channel->buffer);
+	free(channel);
+}
+
+static int channel_close(struct channel *channel)
+{
+	DB("Closing channel");
+	close(channel->fd);
+	list_unlink(&channel->list);
+	remove_pf(channel->index);
+	channel_free(channel);
 	return 0;
-}
-
-static struct channel *channel_close(struct channel *channel)
-{
-	/* should properly close the channel */
-	return channel_of(channel->list.next);
 }
 
 static struct channel *new_listener(struct channel *deque, char *ip,
@@ -158,6 +271,7 @@ struct channel *new_udp_listener(struct channel *deque, char *ip, uint16_t port)
 
 	channel->protocol = PROTO_UDP;
 	channel->accept = 0;
+	channel->on_recv = udp_recv;
 	return channel;
 }
 
@@ -221,13 +335,20 @@ struct channel *new_connecter(struct channel *deque, char *ip, uint16_t port,
 	return channel;
 }
 
-int dispatch(struct channel *deque)
+int dispatch(struct channel *ready, struct channel *deque)
 {
 	struct channel *channel;
 
-	for_each_channel(deque, channel) {
+	while ((channel = channel_of(ready->list.next)) != ready) {
+
+		/* placing channel on deque */
+		list_unlink(&channel->list);
+		list_append(&deque->list, &channel->list);
+
+		DB("fd%d flags: %02x", channel->fd, channel->flags);
+
 		if (channel->flags & CHAN_CLOSE) {
-			channel = channel_close(channel);
+			channel_close(channel);
 			continue;
 		}
 
@@ -241,7 +362,7 @@ int dispatch(struct channel *deque)
 	return 0;
 }
 
-int poll_events(struct channel *deque)
+int poll_events(struct channel *deque, struct channel *ready)
 {
 	int i;
 	int ret;
@@ -254,7 +375,7 @@ int poll_events(struct channel *deque)
 
 	if (ret <= 0) {
 		idle++;
-		DB("idle %d\n", idle);
+		DB("idle %d", idle);
 		return 0;
 	}
 
@@ -263,17 +384,23 @@ int poll_events(struct channel *deque)
 		if (!pf[i].revents)
 			continue;
 
+		DB("events for %d (fd %d): %d", i, pf[i].fd, pf[i].revents);
+
 		if ((channel = channel_of_pf[i]) == NULL) {
-			DBWARN("Cannot find channel for fd %d\n", pf[i].fd);
+			DBWARN("Cannot find channel for fd %d", pf[i].fd);
 			continue;
 		}
+
+		DB("Found channel %p with fd: %d", channel, channel->fd);
+		list_unlink(&channel->list);
+		list_append(&ready->list, &channel->list);
 
 		if (pf[i].revents & EV_HUP) {
 			channel->flags |= CHAN_CLOSE;
 			continue;
 		}
 		if (pf[i].revents & EV_INPUT)
-			channel->flags |= channel->accept ? CHAN_ACCEPT : CHAN_RECV;
+			channel->flags |= (channel->accept ? CHAN_ACCEPT : CHAN_RECV);
 		if (pf[i].revents & EV_OUTPUT)
 			channel->flags |= CHAN_SEND;
 	}
@@ -285,4 +412,5 @@ void channel_init(struct channel *channel)
 {
 	bzero(&channel->address.v6, sizeof(struct sockaddr_in6));
 	list_init(&channel->list);
+	channel->buffer = pbuffer_init();
 }

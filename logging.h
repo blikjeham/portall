@@ -9,4 +9,5 @@ extern int loglevel;
 void debug(int , const char *, ...)
 	__attribute__((format(printf, 2, 3)));
 
+void hexdump(int , const unsigned char *, size_t );
 #endif /* LOGGING_H */

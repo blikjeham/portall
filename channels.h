@@ -1,9 +1,12 @@
 #ifndef CHANNELS_H
 #define CHANNELS_H
 
+#include <arpa/inet.h>
+#include <sys/socket.h>
 #include <netinet/in.h>
 #include <poll.h>
 
+#include "pbuffer.h"
 #include "list.h"
 
 #define MAX_CONN 100
@@ -28,6 +31,13 @@ union uaddr {
 	struct sockaddr_in6 v6;
 };
 
+struct psockaddr {
+	int af;
+	socklen_t length;
+	union uaddr addr;
+	char addrstr[INET6_ADDRSTRLEN];
+};
+
 struct channel {
 	int fd;
 	int af;
@@ -37,6 +47,7 @@ struct channel {
 	int index;
 
 	union uaddr address;
+	struct psockaddr src;
 
 	struct list list;
 
@@ -48,6 +59,8 @@ struct channel {
 	int (*on_recv)(struct channel *);
 	int (*on_send)(struct channel *);
 	int (*on_close)(struct channel *);
+
+	pbuffer *buffer;
 };
 
 #define channel_of(ptr) containerof(ptr, struct channel, list)
@@ -56,13 +69,37 @@ struct channel {
 					  ptr != deque; \
 					  ptr = channel_of(ptr->list.next))
 
+static inline struct sockaddr *psockaddr_saddr(struct psockaddr *psock)
+{
+	if (psock->af == AF_INET6)
+		return (struct sockaddr *)&psock->addr.v6.sin6_addr;
+	else
+		return (struct sockaddr *)&psock->addr.v4.sin_addr;
+}
+
+static inline socklen_t psockaddr_len(struct psockaddr *psock)
+{
+	if (psock->af == AF_INET6)
+		return sizeof(psock->addr.v6);
+	else
+		return sizeof(psock->addr.v4);
+}
+
+static inline void *psockaddr_uaddr(struct psockaddr *psock)
+{
+	if (psock->af == AF_INET6)
+		return (void *)&psock->addr.v6;
+	else
+		return (void *)&psock->addr.v4;
+}
+
 struct channel *new_udp_listener(struct channel *, char *, uint16_t );
 struct channel *new_tcp_listener(struct channel *, char *, uint16_t );
 struct channel *new_connecter(struct channel *, char *, uint16_t , int );
 struct channel *connecter(struct channel *, char *, uint16_t );
 
-int dispatch(struct channel *);
-int poll_events(struct channel *);
+int dispatch(struct channel *, struct channel *);
+int poll_events(struct channel *, struct channel *);
 
 void channel_init(struct channel *);
 

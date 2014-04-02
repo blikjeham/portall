@@ -3,3 +3,6 @@ portall
 
 # Object files
 *.o
+
+# Coredumps
+*.core

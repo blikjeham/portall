@@ -21,15 +21,16 @@ void debug(int level, const char *fmt, ...)
 		va_start(va, fmt);
 		fprintf(stderr, "[%s.%-6ld] ", buf, tv.tv_usec);
 		vfprintf(stderr, fmt, va);
+		fprintf(stderr, "\n");
 		va_end(va);
 	}
 }
 
-static void print_hexline(const u_char *payload, int len, int offset)
+static void print_hexline(const unsigned char *payload, int len, int offset)
 {
 	int i;
 	int gap;
-	const u_char *ch;
+	const unsigned char *ch;
 
 	fprintf(stderr, "%05d   ", offset);
 	ch = payload;
@@ -63,9 +64,9 @@ static void print_hexline(const u_char *payload, int len, int offset)
 	return;
 }
 
-void hexdump(int level, const u_char *payload, size_t len)
+void hexdump(int level, const unsigned char *payload, size_t len)
 {
-	if (loglevel <= level)
+	if (loglevel < level)
 		return;
 
 	size_t len_rem = len;
@@ -73,7 +74,7 @@ void hexdump(int level, const u_char *payload, size_t len)
 	size_t line_len;
 	int offset = 0;
 
-	const u_char *ch = payload;
+	const unsigned char *ch = payload;
 
 	if (len <= 0)
 		return;

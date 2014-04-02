@@ -10,11 +10,14 @@ int main(int argc, char **argv)
 	extern unsigned int idle;
 	extern int nfds;
 	extern struct channel *deque;
+	struct channel *ready;
 
 	loglevel = 0;
 
 	deque = malloc(sizeof(struct channel));
 	channel_init(deque);
+	ready = malloc(sizeof(struct channel));
+	channel_init(ready);
 
 	idle = 0;
 	nfds = 0;
@@ -26,9 +29,9 @@ int main(int argc, char **argv)
 	if (create_sockets() < 0)
 		return 2;
 
-	while(poll_events(deque) >= 0) {
+	while(poll_events(deque, ready) >= 0) {
 		/* do nothing yet */
-		dispatch(deque);
+		dispatch(ready, deque);
 	};
 	return 0;
 }

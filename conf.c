@@ -26,7 +26,7 @@ static int help(void)
 
 static int create_output(struct conf_output *output)
 {
-	DBINFO("Creating new %s output channel on %s:%u\n",
+	DBINFO("Creating new %s output channel on %s:%u",
 	       output->protocol == PROTO_TCP ? "TCP" : "UDP",
 	       output->src, output->sport);
 	output->channel = new_connecter(deque, output->dst, output->dport,
@@ -38,7 +38,7 @@ static int create_output(struct conf_output *output)
 
 static int create_input(struct conf_input *input)
 {
-	DBINFO("Creating new %s input channel on %s:%u\n",
+	DBINFO("Creating new %s input channel on %s:%u",
 	       input->protocol == PROTO_TCP ? "TCP" : "UDP",
 	       input->ip, input->port);
 	if (input->protocol == PROTO_TCP)
@@ -55,19 +55,19 @@ static int create_input(struct conf_input *input)
 int create_tunnel(struct conf_tunnel *tunnel)
 {
 	if (tunnel->remote) {
-		DBINFO("Connecting to tunnel %s:%u\n", tunnel->ip,
+		DBINFO("Connecting to tunnel %s:%u", tunnel->ip,
 		       tunnel->port);
 		tunnel->channel = new_connecter(deque, tunnel->ip,
 						tunnel->port,
 						PROTO_TCP);
 	} else {
-		DBINFO("Listening for tunnel %s:%u\n", tunnel->ip,
+		DBINFO("Listening for tunnel %s:%u", tunnel->ip,
 		       tunnel->port);
 		tunnel->channel = new_tcp_listener(deque, tunnel->ip,
 						   tunnel->port);
 	}
 	if (tunnel->channel == NULL) {
-		DBERR("Tunnel failed\n");
+		DBERR("Tunnel failed");
 		return -1;
 	}
 	return 0;
@@ -88,7 +88,7 @@ int create_sockets(void)
 	}
 
 	if (!tunnel) {
-		DBERR("No tunnel configured\n");
+		DBERR("No tunnel configured");
 		return -1;
 	}
 	if ((ret = create_tunnel(tunnel)) < 0)
@@ -175,7 +175,7 @@ static int parse_input(char *line)
 		ret = 2;
 
 	if (ret) {
-		printf("Invalid input: %d\n", ret);
+		DBERR("Invalid input: %d", ret);
 		input_free(new);
 		return 1;
 	}
@@ -221,7 +221,7 @@ static int parse_tunnel(char *line)
 	} else if (!strcmp(holder, "local")) {
 		remote = 0;
 	} else {
-		printf("Unknown tunnel mode\n");
+		DBERR("Unknown tunnel mode");
 		return -2;
 	}
 	tunnel = malloc(sizeof(struct conf_tunnel));
@@ -253,7 +253,7 @@ static int parse_file(char *filename)
 	line = malloc(MAX_LINE);
 
 	if (!(f = fopen(filename, "r"))) {
-		printf("Could not open file %s\n", filename);
+		DBERR("Could not open file %s", filename);
 		return -1;
 	}
 
@@ -310,7 +310,7 @@ int get_config_files(int argc, char **argv)
 	struct stat *file_stats = malloc(sizeof(struct stat));
 
 	if (argc < 2) {
-		printf("Please supply one or more config files\n");
+		DBERR("Please supply one or more config files");
 		return -1;
 	}
 
@@ -324,12 +324,12 @@ int get_config_files(int argc, char **argv)
 				continue;
 		}
 		if ((ret = stat(argv[i], file_stats)) < 0) {
-			printf("File does not exist %s\n", argv[i]);
+			DBERR("File does not exist %s", argv[i]);
 			continue;
 		}
 
 		if ((ret = parse_file(argv[i])) < 0) {
-			printf("Could not parse file %s\n", argv[i]);
+			DBERR("Could not parse file %s", argv[i]);
 			continue;
 		}
 	}
