@@ -2,9 +2,11 @@
 #define CONF_H
 
 #include <stdio.h>
+#include <netinet/in.h>
 #include "list.h"
 
 #define MAX_LINE 512
+#define MAX_TAG 16
 
 #define CONF_INPUT 1
 #define CONF_OUTPUT 2
@@ -15,6 +17,7 @@ struct conf_input {
 	uint16_t port;
 	int protocol;
 	int af;
+	char tag[MAX_TAG];
 	struct list list;
 	struct channel *channel;
 };
@@ -26,6 +29,7 @@ struct conf_output {
 	uint16_t dport;
 	int protocol;
 	int af;
+	char tag[MAX_TAG];
 	struct list list;
 	struct channel *channel;
 };

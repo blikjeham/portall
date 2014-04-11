@@ -44,12 +44,13 @@ pbuffer *pbuffer_init(void);
 void pbuffer_set(pbuffer *, void *, size_t );
 int pbuffer_strcpy(pbuffer *, char *);
 void pbuffer_sprintf(pbuffer *buffer, char *fmt, ...)
-    __attribute__((format(printf,2,3)));
+	__attribute__((format(printf,2,3)));
 
 /* Add this string to the buffer. */
 void pbuffer_add_sprintf(pbuffer *buffer, char *fmt, ...)
-    __attribute__((format(printf,2,3)));
+	__attribute__((format(printf,2,3)));
 void pbuffer_add(pbuffer *, void *, size_t );
+void pbuffer_add_uint(pbuffer *, unsigned int );
 int pbuffer_strcat(pbuffer *, char *);
 
 /* Move the beginning of the buffer */
@@ -57,6 +58,9 @@ void pbuffer_shift(pbuffer *, size_t );
 
 /* Extract data from buffer */
 void pbuffer_extract(pbuffer *, void *, size_t);
+
+/* Copy the contents of one buffer to another */
+int pbuffer_copy(pbuffer *, pbuffer *, size_t );
 
 /* Assure size of the buffer */
 int pbuffer_assure(pbuffer *, size_t );

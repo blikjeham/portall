@@ -5,9 +5,11 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <poll.h>
+#include <stdio.h>
 
 #include "pbuffer.h"
 #include "list.h"
+#include "conf.h"
 
 #define MAX_CONN 100
 
@@ -20,6 +22,7 @@
 #define CHAN_SEND 0x08
 #define CHAN_ALL (CHAN_CLOSE|CHAN_ACCEPT|CHAN_RECV|CHAN_SEND)
 #define CHAN_TAGGED 0x10
+#define CHAN_PERSIST (CHAN_TAGGED)
 
 #define EV_HUP (POLLHUP)
 #define EV_INPUT (POLLIN)
@@ -45,6 +48,7 @@ struct channel {
 	int flags;
 	int accept;
 	int index;
+	char tag[MAX_TAG];
 
 	union uaddr address;
 	struct psockaddr src;
@@ -60,7 +64,8 @@ struct channel {
 	int (*on_send)(struct channel *);
 	int (*on_close)(struct channel *);
 
-	pbuffer *buffer;
+	pbuffer *recv_buffer;
+	pbuffer *send_buffer;
 };
 
 #define channel_of(ptr) containerof(ptr, struct channel, list)
@@ -69,12 +74,20 @@ struct channel {
 					  ptr != deque; \
 					  ptr = channel_of(ptr->list.next))
 
+static inline char *psockaddr_string(struct psockaddr *psock)
+{
+	char *tmp = malloc(INET6_ADDRSTRLEN + 6);
+	snprintf(tmp, INET6_ADDRSTRLEN + 6, "%s:%d", psock->addrstr,
+		 psock->addr.v6.sin6_port);
+	return tmp;
+}
+
 static inline struct sockaddr *psockaddr_saddr(struct psockaddr *psock)
 {
 	if (psock->af == AF_INET6)
-		return (struct sockaddr *)&psock->addr.v6.sin6_addr;
+		return (struct sockaddr *)&psock->addr.v6;
 	else
-		return (struct sockaddr *)&psock->addr.v4.sin_addr;
+		return (struct sockaddr *)&psock->addr.v4;
 }
 
 static inline socklen_t psockaddr_len(struct psockaddr *psock)
@@ -83,14 +96,6 @@ static inline socklen_t psockaddr_len(struct psockaddr *psock)
 		return sizeof(psock->addr.v6);
 	else
 		return sizeof(psock->addr.v4);
-}
-
-static inline void *psockaddr_uaddr(struct psockaddr *psock)
-{
-	if (psock->af == AF_INET6)
-		return (void *)&psock->addr.v6;
-	else
-		return (void *)&psock->addr.v4;
 }
 
 struct channel *new_udp_listener(struct channel *, char *, uint16_t );

@@ -4,6 +4,57 @@
 #include "logging.h"
 
 #define DB(fmt, args...) debug(3, "[tlv]: " fmt, ##args)
+#define DBERR(fmt, args...) debug(0, "[tlv]: " fmt, ##args)
+
+static unsigned int extract_num(pbuffer *b, size_t len)
+{
+	unsigned char holder;
+	unsigned int number;
+	if (b->length < len) {
+		return 0;
+	}
+	pbuffer_extract(b, &holder, len);
+	number = (unsigned int)holder;
+	return number;
+}
+
+static unsigned int extract_uint(pbuffer *b)
+{
+	unsigned int number;
+	if (b->length < sizeof(unsigned int))
+		return 0;
+
+	pbuffer_extract(b, &number, sizeof(unsigned int));
+	return ntohl(number);
+}
+
+static void extract_ip(struct psockaddr *psa, pbuffer *b, size_t len)
+{
+	if (len == 4) {
+	} else if (len == 16) {
+	} else {
+		DBERR("Cannot convert IP address (length != 4/16)");
+	}
+}
+
+void tlv_parse_tags(pbuffer *b, struct forward_header *fh)
+{
+	struct tlv *tlv = tlv_init();
+	while (b->length) {
+		buffer_to_tlv(b, tlv);
+		switch (tlv->type) {
+		case T_TAG:
+			if (tlv->value->length > MAX_TAG)
+				return;
+			strncpy(fh->tag, tlv->value->data, MAX_TAG);
+			DB("Found tag: %s", fh->tag);
+			break;
+		case T_PROTO:
+			DB("Found protocol");
+			break;
+		}
+	}
+}
 
 static unsigned int count_shift(unsigned int num)
 {
@@ -47,21 +98,12 @@ int tlv_to_buffer(struct tlv *tlv, pbuffer *buffer)
 	return 0;
 }
 
-static unsigned int extract_num(pbuffer *buffer)
-{
-	unsigned char holder;
-	unsigned int number;
-	pbuffer_extract(buffer, &holder, 1);
-	number = (unsigned int)holder;
-	return number;
-}
-
 void buffer_to_tlv(pbuffer *buffer, struct tlv *tlv)
 {
 	unsigned int tmp = 0;
 	unsigned int holder = 0;
 
-	while ((holder = extract_num(buffer))) {
+	while ((holder = extract_num(buffer, 1))) {
 		if (holder & TLV_EXTEND) {
 			holder &= ~TLV_EXTEND;
 			tmp |= holder;
@@ -74,7 +116,7 @@ void buffer_to_tlv(pbuffer *buffer, struct tlv *tlv)
 	tlv->type = tmp;
 
 	tmp = 0;
-	while((holder = extract_num(buffer))) {
+	while((holder = extract_num(buffer, 1))) {
 		if (holder & TLV_EXTEND) {
 			holder &= ~TLV_EXTEND;
 			tmp |= holder;

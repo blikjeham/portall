@@ -22,12 +22,14 @@ DEPS += conf.h
 DEPS += logging.h
 DEPS += pbuffer.h
 DEPS += tlv.h
+DEPS += forward.h
 
 OBJ = channels.o
 OBJ += conf.o
 OBJ += logging.o
 OBJ += pbuffer.o
 OBJ += tlv.o
+OBJ += forward.o
 
 MCOBJ = main.o $(OBJ)
 

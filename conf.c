@@ -26,21 +26,22 @@ static int help(void)
 
 static int create_output(struct conf_output *output)
 {
-	DBINFO("Creating new %s output channel on %s:%u",
+	DBINFO("Creating new %s output channel on %s:%u, tag=%s",
 	       output->protocol == PROTO_TCP ? "TCP" : "UDP",
-	       output->src, output->sport);
+	       output->src, output->sport, output->tag);
 	output->channel = new_connecter(deque, output->dst, output->dport,
 					output->protocol);
 	if (!output->channel)
 		return -1;
+	strncpy(output->channel->tag, output->tag, MAX_TAG);
 	return 0;
 }
 
 static int create_input(struct conf_input *input)
 {
-	DBINFO("Creating new %s input channel on %s:%u",
+	DBINFO("Creating new %s input channel on %s:%u, tag=%s",
 	       input->protocol == PROTO_TCP ? "TCP" : "UDP",
-	       input->ip, input->port);
+	       input->ip, input->port, input->tag);
 	if (input->protocol == PROTO_TCP)
 		input->channel = new_tcp_listener(deque, input->ip,
 						  input->port);
@@ -49,6 +50,7 @@ static int create_input(struct conf_input *input)
 						  input->port);
 	if (!input->channel)
 		return -1;
+	strncpy(input->channel->tag, input->tag, MAX_TAG);
 	return 0;
 }
 
@@ -70,6 +72,7 @@ int create_tunnel(struct conf_tunnel *tunnel)
 		DBERR("Tunnel failed");
 		return -1;
 	}
+	tunnel->channel->flags |= CHAN_TAGGED;
 	return 0;
 }
 
@@ -171,8 +174,12 @@ static int parse_input(char *line)
 	if (!(new->protocol = parse_protocol(holder)))
 		ret = 1;
 
-	if (!(new->af = parse_ip_and_port(line, new->ip, &new->port)))
+	holder = strsep(&line, ",");
+	if (!(new->af = parse_ip_and_port(holder, new->ip, &new->port)))
 		ret = 2;
+
+	if (!strncpy(new->tag, line, MAX_TAG))
+		ret = 3;
 
 	if (ret) {
 		DBERR("Invalid input: %d", ret);
@@ -195,7 +202,11 @@ static int parse_output(char *line)
 	if (!(new->protocol = parse_protocol(holder)))
 		ret = -1;
 
-	if (!(new->af = parse_ip_and_port(line, new->dst, &new->dport)))
+	holder = strsep(&line, ",");
+	if (!(new->af = parse_ip_and_port(holder, new->dst, &new->dport)))
+		ret = -1;
+
+	if (!strncpy(new->tag, line, MAX_TAG))
 		ret = -1;
 
 	if (ret) {

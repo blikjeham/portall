@@ -10,6 +10,7 @@
 #include "channels.h"
 #include "list.h"
 #include "logging.h"
+#include "forward.h"
 
 struct pollfd pf[MAX_CONN];
 struct channel *channel_of_pf[MAX_CONN];
@@ -35,19 +36,16 @@ static void set_ip(struct channel *channel, char *ip)
 	}
 }
 
-/* XXX: need to fix the addr foo */
+/* convert the IP address to string */
 static char *addrstr(struct psockaddr *addr)
 {
-	DB("AF = %d", addr->af);
-	DB("naddr = %lu", addr->addr.v4.sin_addr.s_addr);
 	if (addr->af == AF_INET6) {
-		inet_ntop(addr->af, &addr->addr.v6.sin6_addr,
+		inet_ntop(addr->af, &(addr->addr.v6.sin6_addr),
 			  addr->addrstr, INET6_ADDRSTRLEN);
 	} else {
-		inet_ntop(addr->af, &addr->addr.v4.sin_addr,
+		inet_ntop(addr->af, &(addr->addr.v4.sin_addr),
 			  addr->addrstr, INET_ADDRSTRLEN);
 	}
-	DB("address = %s", addr->addrstr);
 	return addr->addrstr;
 }
 
@@ -62,17 +60,18 @@ static void set_port(struct channel *channel, uint16_t port)
 static int udp_recv(struct channel *channel)
 {
 	size_t bytes = 0;
-	pbuffer *b = channel->buffer;
-	struct psockaddr *src = malloc(sizeof(struct psockaddr));
+	pbuffer *b = channel->recv_buffer;
+	struct sockaddr *src;
 	socklen_t len;
 
-	len = sizeof(src);
-	src->af = AF_INET;
-	DB("recvfrom");
-	/* XXX: need to fix the addr foo */
+	channel->src.af = channel->af;
+	src = psockaddr_saddr(&channel->src);
+	len = psockaddr_len(&channel->src);
+
+	/* stretch buffer to encompass message */
 	while ((bytes = recvfrom(channel->fd, pbuffer_end(b), b->allocated,
 				 MSG_PEEK,
-				 (struct sockaddr *)&(src->addr.v4.sin_addr),
+				 src,
 				 &len)) >= b->allocated) {
 		if (bytes == -1) {
 			perror("recvfrom()");
@@ -80,26 +79,28 @@ static int udp_recv(struct channel *channel)
 		}
 		pbuffer_assure(b, (bytes * 2) | PBUFFER_MIN);
 	}
+
+	/* actually receive the message */
 	bytes = recvfrom(channel->fd, pbuffer_end(b), b->allocated, 0,
-			 (struct sockaddr *)&(src->addr.v4.sin_addr), &len);
+			 src, &len);
+
 	if (bytes == 0) {
 		channel->flags = CHAN_CLOSE;
 		return 0;
 	}
-	DB("len = %d", len);
-	DB("%p", src);
 	b->length += bytes;
-	DB("received %zu bytes from %s", bytes, addrstr(src));
+	addrstr(&channel->src);
 	return bytes;
 }
 
 static int tcp_recv(struct channel *channel)
 {
 	size_t bytes = 0;
-	pbuffer *b = channel->buffer;
+	pbuffer *b = channel->recv_buffer;
 
-	DB("recv");
-	while ((bytes = recv(channel->fd, pbuffer_end(b), b->allocated, MSG_PEEK))
+	/* stretch buffer to encompass message */
+	while ((bytes = recv(channel->fd, pbuffer_end(b), b->allocated,
+			     MSG_PEEK))
 	       >= b->allocated) {
 		if (bytes == -1) {
 			perror("recv()");
@@ -107,27 +108,51 @@ static int tcp_recv(struct channel *channel)
 		}
 		pbuffer_assure(b, (bytes * 2) | PBUFFER_MIN);
 	}
+
+	/* actually receive the message */
 	bytes = recv(channel->fd, pbuffer_end(b), b->allocated, 0);
 	if (bytes == 0) {
 		channel->flags = CHAN_CLOSE;
 		return 0;
 	}
 	b->length += bytes;
-	DB("received %zu more bytes", bytes);
 	return bytes;
+}
+
+static int tcp_send(struct channel *channel)
+{
+	int ret;
+	pbuffer *b = channel->send_buffer;
+	DB("start sending");
+	if (!b)
+		return -1;
+	DB("sending %zu bytes", b->length);
+
+	if ((ret = send(channel->fd, b->data, b->length, 0)) < 0) {
+		perror("send");
+		return -1;
+	}
+	pbuffer_clear(b);
+	channel->flags &= ~CHAN_SEND;
+
+	return ret;
 }
 
 static int channel_recv(struct channel *channel)
 {
 	int ret = 0;
-	pbuffer *b = channel->buffer;
-	DB("recv");
+	pbuffer *b = channel->recv_buffer;
 	if (channel->on_recv) {
 		ret = channel->on_recv(channel);
+		if (ret > 0) {
+			DB("received %u bytes from %s", ret,
+			   psockaddr_string(&channel->src));
+			hexdump(3, (unsigned char *)b->data, b->length);
+			forward_message(channel);
+		}
 	} else {
 		DB("No callback");
 	}
-	hexdump(3, (unsigned char *)b->data, b->length);
 
 	channel->flags &= ~CHAN_RECV;
 	channel->pf->events |= EV_INPUT;
@@ -149,27 +174,29 @@ static int channel_accept(struct channel *channel)
 {
 	socklen_t len;
 	struct channel *new = malloc(sizeof(struct channel));
+	struct sockaddr *src;
 
 	DB("Accepting channel");
 	channel_init(new);
-	if(channel->af == AF_INET6) {
-		len = sizeof(struct sockaddr_in6);
-		new->fd = accept(channel->fd, (struct sockaddr *)&new->address.v6,
-				 &len);
-	} else {
-		len = sizeof(struct sockaddr_in);
-		new->fd = accept(channel->fd, (struct sockaddr *)&new->address.v4,
-				 &len);
-	}
+	new->src.af = new->af = channel->af;
+	src = psockaddr_saddr(&new->src);
+	len = psockaddr_len(&new->src);
+	new->fd = accept(channel->fd, src, &len);
+
 	if (new->fd < 0) {
 		perror("accept()");
 		return -1;
 	}
 
-	DB("New fd is %d", new->fd);
+	addrstr(&new->src);
+
+	DB("New fd is %d, connected address is %s", new->fd,
+	   psockaddr_string(&new->src));
 	channel->flags &= ~CHAN_ACCEPT;
-	new->flags = 0;
+	new->flags = (channel->flags & CHAN_PERSIST);
+	strncpy(new->tag, channel->tag, MAX_TAG);
 	new->on_recv = tcp_recv;
+	new->on_send = tcp_send;
 	list_append(&channel->list, &new->list);
 	pf[nfds].fd = new->fd;
 	pf[nfds].events = EV_INPUT | EV_OUTPUT;
@@ -198,7 +225,8 @@ static void remove_pf(int index)
 
 static void channel_free(struct channel *channel)
 {
-	pbuffer_free(channel->buffer);
+	pbuffer_free(channel->recv_buffer);
+	pbuffer_free(channel->send_buffer);
 	free(channel);
 }
 
@@ -297,11 +325,20 @@ struct channel *new_connecter(struct channel *deque, char *ip, uint16_t port,
 {
 	struct channel *channel = malloc(sizeof(struct channel));
 	int ret = 0;
-	int proto = (mode == PROTO_TCP) ? SOCK_STREAM : SOCK_DGRAM;
+	int proto;
 
 	channel_init(channel);
 	set_ip(channel, ip);
 	set_port(channel, port);
+
+	if (mode == PROTO_TCP) {
+		proto = SOCK_STREAM;
+		channel->on_recv = tcp_recv;
+		channel->on_send = tcp_send;
+	} else {
+		proto = SOCK_DGRAM;
+		channel->on_recv = udp_recv;
+	}
 
 	if ((ret = socket(channel->af, proto, 0)) == -1) {
 		perror("socket()");
@@ -412,5 +449,6 @@ void channel_init(struct channel *channel)
 {
 	bzero(&channel->address.v6, sizeof(struct sockaddr_in6));
 	list_init(&channel->list);
-	channel->buffer = pbuffer_init();
+	channel->recv_buffer = pbuffer_init();
+	channel->send_buffer = pbuffer_init();
 }
