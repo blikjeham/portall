@@ -54,6 +54,22 @@ static int create_input(struct conf_input *input)
 	return 0;
 }
 
+static int tunnel_close(struct channel *channel)
+{
+	struct conf_input *input;
+	struct conf_output *output;
+
+	/* block both input and output channels */
+	for_each_input(deq_input, input) {
+		input->channel->pf->events &= ~EV_INPUT;
+	}
+
+	for_each_output(deq_output, output) {
+		output->channel->pf->events &= ~EV_INPUT;
+	}
+	return 0;
+}
+
 int create_tunnel(struct conf_tunnel *tunnel)
 {
 	if (tunnel->remote) {
@@ -73,6 +89,7 @@ int create_tunnel(struct conf_tunnel *tunnel)
 		return -1;
 	}
 	tunnel->channel->flags |= CHAN_TAGGED;
+	tunnel->channel->on_close = tunnel_close;
 	return 0;
 }
 
@@ -86,14 +103,15 @@ int create_sockets(void)
 	struct conf_output *optr;
 	struct conf_input *iptr;
 
-	for_each_output(deq_output, optr) {
-		ret = create_output(optr);
-	}
-
 	if (!tunnel) {
 		DBERR("No tunnel configured");
 		return -1;
 	}
+
+	for_each_output(deq_output, optr) {
+		ret = create_output(optr);
+	}
+
 	if ((ret = create_tunnel(tunnel)) < 0)
 		return -1;
 

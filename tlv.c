@@ -37,6 +37,11 @@ static void extract_ip(struct psockaddr *psa, pbuffer *b, size_t len)
 	}
 }
 
+static void tlv_to_psockaddr(pbuffer *b, struct psockaddr *psa)
+{
+	return;
+}
+
 void tlv_parse_tags(pbuffer *b, struct forward_header *fh)
 {
 	struct tlv *tlv = tlv_init();
@@ -49,11 +54,54 @@ void tlv_parse_tags(pbuffer *b, struct forward_header *fh)
 			strncpy(fh->tag, tlv->value->data, MAX_TAG);
 			DB("Found tag: %s", fh->tag);
 			break;
-		case T_PROTO:
-			DB("Found protocol");
+		case T_PROTOCOL:
+			fh->protocol = extract_num(tlv->value, 1);
+			break;
+		case T_SRC:
+			tlv_to_psockaddr(tlv->value, &fh->src);
+			break;
+		case T_DST:
+			tlv_to_psockaddr(tlv->value, &fh->dst);
+			break;
+		case T_PAYLOAD:
+			/* found payload */
 			break;
 		}
 	}
+}
+
+void tlv_generate_tags(struct forward_header *fh, pbuffer *b)
+{
+	struct tlv *tlv = tlv_init();
+
+	if (fh->tag) {
+		tlv->type = T_TAG;
+		tlv->length = strlen(fh->tag);
+		pbuffer_add(tlv->value, fh->tag, tlv->length);
+		tlv_to_buffer(tlv, b);
+		tlv_clear(tlv);
+		hexdump(3, b->data, b->length);
+	}
+
+	if (fh->protocol) {
+		tlv->type = T_PROTOCOL;
+		tlv->length = 1;
+		pbuffer_add(tlv->value, &fh->protocol, 1);
+		tlv_to_buffer(tlv, b);
+		tlv_clear(tlv);
+		hexdump(3, b->data, b->length);
+	}
+
+	if (fh->payload->length) {
+		hexdump(3, b->data, b->length);
+		tlv->type = T_PAYLOAD;
+		tlv->length = fh->payload->length;
+		pbuffer_copy(tlv->value, fh->payload, tlv->length);
+		tlv_to_buffer(tlv, b);
+		tlv_clear(tlv);
+		hexdump(3, b->data, b->length);
+	}
+	tlv_free(tlv);
 }
 
 static unsigned int count_shift(unsigned int num)
@@ -137,4 +185,10 @@ struct tlv *tlv_init(void)
 	tmp = malloc(sizeof(struct tlv));
 	tmp->value = pbuffer_init();
 	return tmp;
+}
+
+void tlv_free(struct tlv *tlv)
+{
+	pbuffer_free(tlv->value);
+	free(tlv);
 }

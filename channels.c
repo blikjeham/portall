@@ -69,10 +69,10 @@ static int udp_recv(struct channel *channel)
 	len = psockaddr_len(&channel->src);
 
 	/* stretch buffer to encompass message */
-	while ((bytes = recvfrom(channel->fd, pbuffer_end(b), b->allocated,
+	while ((bytes = recvfrom(channel->fd, pbuffer_end(b), pbuffer_unused(b),
 				 MSG_PEEK,
 				 src,
-				 &len)) >= b->allocated) {
+				 &len)) >= pbuffer_unused(b)) {
 		if (bytes == -1) {
 			perror("recvfrom()");
 			return -1;
@@ -81,7 +81,7 @@ static int udp_recv(struct channel *channel)
 	}
 
 	/* actually receive the message */
-	bytes = recvfrom(channel->fd, pbuffer_end(b), b->allocated, 0,
+	bytes = recvfrom(channel->fd, pbuffer_end(b), pbuffer_unused(b), 0,
 			 src, &len);
 
 	if (bytes == 0) {
@@ -99,9 +99,9 @@ static int tcp_recv(struct channel *channel)
 	pbuffer *b = channel->recv_buffer;
 
 	/* stretch buffer to encompass message */
-	while ((bytes = recv(channel->fd, pbuffer_end(b), b->allocated,
+	while ((bytes = recv(channel->fd, pbuffer_end(b), pbuffer_unused(b),
 			     MSG_PEEK))
-	       >= b->allocated) {
+	       >= pbuffer_unused(b)) {
 		if (bytes == -1) {
 			perror("recv()");
 			return -1;
@@ -110,10 +110,10 @@ static int tcp_recv(struct channel *channel)
 	}
 
 	/* actually receive the message */
-	bytes = recv(channel->fd, pbuffer_end(b), b->allocated, 0);
-	if (bytes == 0) {
+	bytes = recv(channel->fd, pbuffer_end(b), pbuffer_unused(b), 0);
+	if (bytes <= 0) {
 		channel->flags = CHAN_CLOSE;
-		return 0;
+		return bytes;
 	}
 	b->length += bytes;
 	return bytes;
@@ -124,7 +124,7 @@ static int tcp_send(struct channel *channel)
 	int ret;
 	pbuffer *b = channel->send_buffer;
 	DB("start sending");
-	if (!b)
+	if (!b || !b->length)
 		return -1;
 	DB("sending %zu bytes", b->length);
 
@@ -232,12 +232,15 @@ static void channel_free(struct channel *channel)
 
 static int channel_close(struct channel *channel)
 {
+	int ret;
 	DB("Closing channel");
+	if (channel->on_close)
+		ret = channel->on_close(channel);
 	close(channel->fd);
 	list_unlink(&channel->list);
 	remove_pf(channel->index);
 	channel_free(channel);
-	return 0;
+	return ret;
 }
 
 static struct channel *new_listener(struct channel *deque, char *ip,

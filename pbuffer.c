@@ -32,12 +32,16 @@ static size_t pbuffer_grow(pbuffer *buffer, size_t size)
 		return(buffer->allocated);
 	}
 	size_t newsize = (buffer->allocated*2) | PBUFFER_MIN;
-	buffer->data = realloc(buffer->data, newsize);
+	size_t offset = buffer->data - buffer->start;
 
-	if (buffer->data == NULL) {
+	buffer->start = realloc(buffer->start, newsize);
+
+	if (buffer->start == NULL) {
 		printf("error reallocating memory.\n");
 		return(0);
 	}
+
+	buffer->data = buffer->start + offset;
 
 	buffer->allocated = newsize;
 

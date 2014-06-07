@@ -37,23 +37,17 @@ static struct channel *parse_tags(struct channel *channel)
 /* generate tags, and return the tunnel */
 static struct channel *generate_tags(struct channel *channel)
 {
-	pbuffer *b = channel->recv_buffer;
-	struct tlv *tlv = tlv_init();
-
+	struct forward_header fh;
 	struct channel *out = tunnel->channel;
+
 	DB("Generating tags (%s)", channel->tag);
 
-	tlv->type = T_TAG;
-	tlv->length = strlen(channel->tag);
-	pbuffer_add(tlv->value, channel->tag, tlv->length);
-	tlv_to_buffer(tlv, out->send_buffer);
-	pbuffer_clear(tlv->value);
-	tlv->type = T_PAYLOAD;
-	tlv->length = b->length;
-	pbuffer_copy(tlv->value, b, b->length);
-	pbuffer_shift(b, b->length);
-	tlv_to_buffer(tlv, out->send_buffer);
+	strncpy(fh.tag, channel->tag, MAX_TAG);
+	fh.protocol = channel->protocol;
+	fh.payload = channel->recv_buffer;
+	tlv_generate_tags(&fh, out->send_buffer);
 	hexdump(3, out->send_buffer->data, out->send_buffer->length);
+	pbuffer_clear(channel->recv_buffer);
 	return out;
 }
 

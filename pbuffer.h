@@ -25,9 +25,7 @@
 #define PBUFFER_MIN 120
 
 #define pbuffer_end(a) (a->data + a->length)
-#define pbuffer_start(a) (a->data = a->start)
 #define pbuffer_unused(a) (a->allocated - a->length)
-#define pbuffer_clear(a) {pbuffer_start(a); a->length = 0;}
 typedef struct pbuffer pbuffer;
 
 struct pbuffer {
@@ -64,6 +62,17 @@ int pbuffer_copy(pbuffer *, pbuffer *, size_t );
 
 /* Assure size of the buffer */
 int pbuffer_assure(pbuffer *, size_t );
+
+static inline void pbuffer_start(pbuffer *b)
+{
+	(b->data = b->start);
+}
+
+static inline void pbuffer_clear(pbuffer *b)
+{
+	pbuffer_start(b);
+	b->length = 0;
+}
 
 /* Free the buffer data and the buffer itself. */
 void pbuffer_free(pbuffer *);

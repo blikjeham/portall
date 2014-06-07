@@ -30,7 +30,6 @@ int main(int argc, char **argv)
 		return 2;
 
 	while(poll_events(deque, ready) >= 0) {
-		/* do nothing yet */
 		dispatch(ready, deque);
 	};
 	return 0;

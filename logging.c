@@ -32,7 +32,7 @@ static void print_hexline(const unsigned char *payload, int len, int offset)
 	int gap;
 	const unsigned char *ch;
 
-	fprintf(stderr, "%05d   ", offset);
+	fprintf(stderr, "%08x   ", offset);
 	ch = payload;
 	for (i=0; i<len; i++) {
 		fprintf(stderr, "%02x ", *ch);
@@ -85,13 +85,15 @@ void hexdump(int level, const unsigned char *payload, size_t len)
 	}
 
 	for ( ;; ) {
-		line_len = line_width & len_rem;
+		line_len = len_rem;
+		if (len_rem >= line_width)
+			line_len = line_width;
+
 		print_hexline(ch, line_len, offset);
 		len_rem = len_rem - line_len;
 		ch = ch + line_len;
 		offset = offset + line_width;
-		if (len_rem <= line_width) {
-			print_hexline(ch, len_rem, offset);
+		if (len_rem == 0) {
 			break;
 		}
 	}
