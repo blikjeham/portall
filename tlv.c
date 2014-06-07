@@ -80,7 +80,6 @@ void tlv_generate_tags(struct forward_header *fh, pbuffer *b)
 		pbuffer_add(tlv->value, fh->tag, tlv->length);
 		tlv_to_buffer(tlv, b);
 		tlv_clear(tlv);
-		hexdump(3, b->data, b->length);
 	}
 
 	if (fh->protocol) {
@@ -89,17 +88,14 @@ void tlv_generate_tags(struct forward_header *fh, pbuffer *b)
 		pbuffer_add(tlv->value, &fh->protocol, 1);
 		tlv_to_buffer(tlv, b);
 		tlv_clear(tlv);
-		hexdump(3, b->data, b->length);
 	}
 
 	if (fh->payload->length) {
-		hexdump(3, b->data, b->length);
 		tlv->type = T_PAYLOAD;
 		tlv->length = fh->payload->length;
 		pbuffer_copy(tlv->value, fh->payload, tlv->length);
 		tlv_to_buffer(tlv, b);
 		tlv_clear(tlv);
-		hexdump(3, b->data, b->length);
 	}
 	tlv_free(tlv);
 }
