@@ -44,9 +44,11 @@ static struct channel *generate_tags(struct channel *channel)
 
 	strncpy(fh.tag, channel->tag, MAX_TAG);
 	fh.protocol = channel->protocol;
+	fh.src = channel->src;
 	fh.payload = channel->recv_buffer;
 	tlv_generate_tags(&fh, out->send_buffer);
 	hexdump(3, out->send_buffer->data, out->send_buffer->length);
+	decode_tlv_buffer(out->send_buffer, out->send_buffer->length);
 	pbuffer_clear(channel->recv_buffer);
 	return out;
 }

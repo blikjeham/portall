@@ -37,7 +37,10 @@ union uaddr {
 struct psockaddr {
 	int af;
 	socklen_t length;
-	union uaddr addr;
+	union {
+		struct sockaddr_in v4;
+		struct sockaddr_in6 v6;
+	};
 	char addrstr[INET6_ADDRSTRLEN];
 };
 
@@ -50,7 +53,10 @@ struct channel {
 	int index;
 	char tag[MAX_TAG];
 
-	union uaddr address;
+	union {
+		struct sockaddr_in v4;
+		struct sockaddr_in6 v6;
+	};
 	struct psockaddr src;
 
 	struct list list;
@@ -78,24 +84,24 @@ static inline char *psockaddr_string(struct psockaddr *psock)
 {
 	char *tmp = malloc(INET6_ADDRSTRLEN + 6);
 	snprintf(tmp, INET6_ADDRSTRLEN + 6, "%s:%d", psock->addrstr,
-		 psock->addr.v6.sin6_port);
+		 psock->v6.sin6_port);
 	return tmp;
 }
 
 static inline struct sockaddr *psockaddr_saddr(struct psockaddr *psock)
 {
 	if (psock->af == AF_INET6)
-		return (struct sockaddr *)&psock->addr.v6;
+		return (struct sockaddr *)&psock->v6;
 	else
-		return (struct sockaddr *)&psock->addr.v4;
+		return (struct sockaddr *)&psock->v4;
 }
 
 static inline socklen_t psockaddr_len(struct psockaddr *psock)
 {
 	if (psock->af == AF_INET6)
-		return sizeof(psock->addr.v6);
+		return sizeof(psock->v6);
 	else
-		return sizeof(psock->addr.v4);
+		return sizeof(psock->v4);
 }
 
 struct channel *new_udp_listener(struct channel *, char *, uint16_t );

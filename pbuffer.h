@@ -53,9 +53,12 @@ int pbuffer_strcat(pbuffer *, char *);
 
 /* Move the beginning of the buffer */
 void pbuffer_shift(pbuffer *, size_t );
+void pbuffer_safe_shift(pbuffer *, size_t );
 
 /* Extract data from buffer */
 void pbuffer_extract(pbuffer *, void *, size_t);
+
+void pbuffer_safe_extract(pbuffer *, void *, size_t);
 
 /* Copy the contents of one buffer to another */
 int pbuffer_copy(pbuffer *, pbuffer *, size_t );

@@ -6,26 +6,34 @@
 #define DB(fmt, args...) debug(3, "[tlv]: " fmt, ##args)
 #define DBERR(fmt, args...) debug(0, "[tlv]: " fmt, ##args)
 
-static unsigned int extract_num(pbuffer *b, size_t len)
+const char *T_NAMES[T_NUM] = {
+	[T_TAG] = "TAG",
+	[T_PROTOCOL] = "PROTOCOL",
+	[T_SRC] = "SOURCE",
+	[T_DST] = "DESTINATION",
+	[T_PAYLOAD] = "PAYLOAD",
+};
+
+const char *PT_NAMES[PT_NUM] = {
+	[PT_FAMILY] = "FAMILY",
+	[PT_IPADDR] = "IP ADDRESS",
+	[PT_PORT] = "PORT",
+};
+
+static unsigned char extract_byte(pbuffer *b)
 {
 	unsigned char holder;
-	unsigned int number;
-	if (b->length < len) {
-		return 0;
-	}
-	pbuffer_extract(b, &holder, len);
-	number = (unsigned int)holder;
-	return number;
+	pbuffer_safe_extract(b, &holder, 1);
+	return holder;
 }
 
-static unsigned int extract_uint(pbuffer *b)
+static void ip_to_buffer(pbuffer *b, unsigned char *addr, size_t len)
 {
-	unsigned int number;
-	if (b->length < sizeof(unsigned int))
-		return 0;
-
-	pbuffer_extract(b, &number, sizeof(unsigned int));
-	return ntohl(number);
+	size_t i;
+	pbuffer_assure(b, b->length + len);
+	for (i = 0; i < len; i++) {
+		pbuffer_add(b, &addr[i], 1);
+	}
 }
 
 static void extract_ip(struct psockaddr *psa, pbuffer *b, size_t len)
@@ -37,8 +45,63 @@ static void extract_ip(struct psockaddr *psa, pbuffer *b, size_t len)
 	}
 }
 
+static size_t psockaddr_to_tlv(struct psockaddr *psa, pbuffer *b)
+{
+	struct tlv *tlv = tlv_init();
+	unsigned char holder;
+	size_t length = b->length;
+
+	if (psa->af) {
+		tlv->type = PT_FAMILY;
+		tlv->length = 1;
+		holder = psa->af & 0xff;
+		pbuffer_add(tlv->value, &holder, 1);
+		tlv_to_buffer(tlv, b);
+		tlv_clear(tlv);
+	}
+
+	if (psa->af == AF_INET) {
+		tlv->type = PT_IPADDR;
+		tlv->length = 4;
+		ip_to_buffer(tlv->value, (unsigned char *)&psa->v4.sin_addr,
+			     tlv->length);
+		tlv_to_buffer(tlv, b);
+	} else if (psa->af == AF_INET6) {
+		tlv->type = PT_IPADDR;
+		tlv->length = 16;
+		ip_to_buffer(tlv->value, (unsigned char *)&psa->v6.sin6_addr,
+			     tlv->length);
+		tlv_to_buffer(tlv, b);
+	}
+	tlv_clear(tlv);
+
+	if (psa->v6.sin6_port) {
+		tlv->type = PT_PORT;
+		tlv->length = sizeof(uint16_t);
+		pbuffer_add(tlv->value, &(psa->v6.sin6_port),
+			    tlv->length);
+		tlv_to_buffer(tlv, b);
+		tlv_clear(tlv);
+	}
+
+	return b->length - length;
+}
+
 static void tlv_to_psockaddr(pbuffer *b, struct psockaddr *psa)
 {
+	struct tlv *tlv = tlv_init();
+	while (b->length) {
+		buffer_to_tlv(b, tlv);
+		switch (tlv->type) {
+		case PT_FAMILY:
+			psa->af = extract_byte(tlv->value);
+			break;
+		case PT_IPADDR:
+		case PT_PORT:
+			break;
+		}
+	}
+	tlv_free(tlv);
 	return;
 }
 
@@ -55,7 +118,7 @@ void tlv_parse_tags(pbuffer *b, struct forward_header *fh)
 			DB("Found tag: %s", fh->tag);
 			break;
 		case T_PROTOCOL:
-			fh->protocol = extract_num(tlv->value, 1);
+			fh->protocol = extract_byte(tlv->value);
 			break;
 		case T_SRC:
 			tlv_to_psockaddr(tlv->value, &fh->src);
@@ -68,6 +131,7 @@ void tlv_parse_tags(pbuffer *b, struct forward_header *fh)
 			break;
 		}
 	}
+	tlv_free(tlv);
 }
 
 void tlv_generate_tags(struct forward_header *fh, pbuffer *b)
@@ -86,6 +150,13 @@ void tlv_generate_tags(struct forward_header *fh, pbuffer *b)
 		tlv->type = T_PROTOCOL;
 		tlv->length = 1;
 		pbuffer_add(tlv->value, &fh->protocol, 1);
+		tlv_to_buffer(tlv, b);
+		tlv_clear(tlv);
+	}
+
+	if (fh->src.af) {
+		tlv->type = T_SRC;
+		tlv->length = psockaddr_to_tlv(&fh->src, tlv->value);
 		tlv_to_buffer(tlv, b);
 		tlv_clear(tlv);
 	}
@@ -142,12 +213,14 @@ int tlv_to_buffer(struct tlv *tlv, pbuffer *buffer)
 	return 0;
 }
 
-void buffer_to_tlv(pbuffer *buffer, struct tlv *tlv)
+/* extract the type or value from buffer into dest */
+size_t extract_torv(pbuffer *buffer, unsigned int *dest)
 {
 	unsigned int tmp = 0;
 	unsigned int holder = 0;
-
-	while ((holder = extract_num(buffer, 1))) {
+	size_t bytes = 0;
+	while ((holder = extract_byte(buffer))) {
+		bytes++;
 		if (holder & TLV_EXTEND) {
 			holder &= ~TLV_EXTEND;
 			tmp |= holder;
@@ -157,20 +230,18 @@ void buffer_to_tlv(pbuffer *buffer, struct tlv *tlv)
 			break;
 		}
 	}
-	tlv->type = tmp;
+	*dest = tmp;
+	return bytes;
+}
 
-	tmp = 0;
-	while((holder = extract_num(buffer, 1))) {
-		if (holder & TLV_EXTEND) {
-			holder &= ~TLV_EXTEND;
-			tmp |= holder;
-			tmp = tmp << 7;
-		} else {
-			tmp |= holder;
-			break;
-		}
-	}
-	tlv->length = tmp;
+void buffer_to_tlv(pbuffer *buffer, struct tlv *tlv)
+{
+	size_t bytes;
+	bytes = extract_torv(buffer, &tlv->type);
+	pbuffer_shift(buffer, bytes);
+
+	bytes = extract_torv(buffer, &tlv->length);
+	pbuffer_shift(buffer, bytes);
 
 	tlv->value = buffer;
 }

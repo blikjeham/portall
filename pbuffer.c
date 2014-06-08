@@ -153,6 +153,16 @@ void pbuffer_shift(pbuffer *buffer, size_t size)
 	}
 }
 
+void pbuffer_safe_shift(pbuffer *buffer, size_t size)
+{
+	if (size <= 0)
+		return;
+
+	pbuffer_assure(buffer, size);
+	buffer->data = (buffer->data + size);
+	buffer->length = (buffer->length - size);
+}
+
 void pbuffer_extract(pbuffer *buffer, void *dest, size_t len)
 {
 	if (len > buffer->length)
@@ -160,6 +170,15 @@ void pbuffer_extract(pbuffer *buffer, void *dest, size_t len)
 
 	memcpy(dest, buffer->data, len);
 	pbuffer_shift(buffer, len);
+}
+
+void pbuffer_safe_extract(pbuffer *buffer, void *dest, size_t len)
+{
+	if (len > buffer->length)
+		return;
+
+	memcpy(dest, buffer->data, len);
+	pbuffer_safe_shift(buffer, len);
 }
 
 int pbuffer_assure(pbuffer *buffer, size_t size)

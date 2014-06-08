@@ -19,6 +19,7 @@ enum t_types {
 	T_SRC, /* CONSTRUCT of psock_types */
 	T_DST, /* CONSTRUCT of psock_types */
 	T_PAYLOAD,
+	T_NUM,
 };
 
 /* tlv types for psockaddr */
@@ -26,7 +27,11 @@ enum psock_types {
 	PT_FAMILY = 1,
 	PT_IPADDR,
 	PT_PORT,
+	PT_NUM,
 };
+
+extern const char *T_NAMES[T_NUM];
+extern const char *PT_NAMES[PT_NUM];
 
 static inline void tlv_clear(struct tlv *tlv)
 {
@@ -39,6 +44,8 @@ void tlv_parse_tags(pbuffer *, struct forward_header *);
 void tlv_generate_tags(struct forward_header *, pbuffer *);
 int tlv_to_buffer(struct tlv *, pbuffer *);
 void buffer_to_tlv(pbuffer *, struct tlv *);
+size_t extract_torv(pbuffer *, unsigned int *);
+
 struct tlv *tlv_init();
 void tlv_free(struct tlv *);
 #endif /* TLV_H */

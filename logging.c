@@ -5,6 +5,7 @@
 #include <ctype.h>
 #include <sys/time.h>
 #include "logging.h"
+#include "tlv.h"
 
 int loglevel;
 
@@ -98,4 +99,32 @@ void hexdump(int level, const unsigned char *payload, size_t len)
 		}
 	}
 	return;
+}
+
+void decode_tlv(struct tlv *tlv)
+{
+	debug(3, "Type: %s (%d)", T_NAMES[tlv->type], tlv->type);
+	debug(3, "Length: %d", tlv->length);
+	debug(3, "Value:");
+	hexdump(3, tlv->value->data, tlv->length);
+}
+
+void decode_tlv_buffer(pbuffer *buffer, size_t len)
+{
+	struct tlv *tlv = tlv_init();
+	size_t bytes;
+	char *start = buffer->data;
+	size_t length = buffer->length;
+	while (len > 0) {
+		bytes = extract_torv(buffer, &tlv->type);
+		len -= bytes;
+		bytes = extract_torv(buffer, &tlv->length);
+		len -= bytes;
+		pbuffer_set(tlv->value, buffer->data, tlv->length);
+		decode_tlv(tlv);
+		pbuffer_safe_shift(buffer, tlv->length);
+		len -= tlv->length;
+	}
+	buffer->data = start;
+	buffer->length = length;
 }

@@ -27,12 +27,12 @@ static void set_ip(struct channel *channel, char *ip)
 {
 	if ((strstr(ip, ":")) != NULL) {
 		channel->af = AF_INET6;
-		channel->address.v6.sin6_family = channel->af;
-		inet_pton(channel->af, ip, &(channel->address.v6.sin6_addr));
+		channel->v6.sin6_family = channel->af;
+		inet_pton(channel->af, ip, &(channel->v6.sin6_addr));
 	} else {
 		channel->af = AF_INET;
-		channel->address.v4.sin_family = channel->af;
-		inet_pton(channel->af, ip, &(channel->address.v4.sin_addr));
+		channel->v4.sin_family = channel->af;
+		inet_pton(channel->af, ip, &(channel->v4.sin_addr));
 	}
 }
 
@@ -40,10 +40,10 @@ static void set_ip(struct channel *channel, char *ip)
 static char *addrstr(struct psockaddr *addr)
 {
 	if (addr->af == AF_INET6) {
-		inet_ntop(addr->af, &(addr->addr.v6.sin6_addr),
+		inet_ntop(addr->af, &(addr->v6.sin6_addr),
 			  addr->addrstr, INET6_ADDRSTRLEN);
 	} else {
-		inet_ntop(addr->af, &(addr->addr.v4.sin_addr),
+		inet_ntop(addr->af, &(addr->v4.sin_addr),
 			  addr->addrstr, INET_ADDRSTRLEN);
 	}
 	return addr->addrstr;
@@ -52,9 +52,9 @@ static char *addrstr(struct psockaddr *addr)
 static void set_port(struct channel *channel, uint16_t port)
 {
 	if (channel->af == AF_INET6)
-		channel->address.v6.sin6_port = htons(port);
+		channel->v6.sin6_port = htons(port);
 	else
-		channel->address.v4.sin_port = htons(port);
+		channel->v4.sin_port = htons(port);
 }
 
 static int udp_recv(struct channel *channel)
@@ -269,11 +269,11 @@ static struct channel *new_listener(struct channel *deque, char *ip,
 	}
 
 	if (channel->af == AF_INET6) {
-		ret = bind(new_sock, (struct sockaddr *)&channel->address.v6,
-			   sizeof(channel->address.v6));
+		ret = bind(new_sock, (struct sockaddr *)&channel->v6,
+			   sizeof(channel->v6));
 	} else {
-		ret = bind(new_sock, (struct sockaddr *)&channel->address.v4,
-			   sizeof(channel->address.v4));
+		ret = bind(new_sock, (struct sockaddr *)&channel->v4,
+			   sizeof(channel->v4));
 	}
 
 	if (ret < 0) {
@@ -350,11 +350,11 @@ struct channel *new_connecter(struct channel *deque, char *ip, uint16_t port,
 	channel->fd = ret;
 	if (channel->af == AF_INET6) {
 		ret = connect(channel->fd,
-			      (struct sockaddr *)&channel->address.v6,
+			      (struct sockaddr *)&channel->v6,
 			      sizeof(struct sockaddr));
 	} else {
 		ret = connect(channel->fd,
-			      (struct sockaddr *)&channel->address.v4,
+			      (struct sockaddr *)&channel->v4,
 			      sizeof(struct sockaddr));
 	}
 
@@ -450,7 +450,7 @@ int poll_events(struct channel *deque, struct channel *ready)
 
 void channel_init(struct channel *channel)
 {
-	bzero(&channel->address.v6, sizeof(struct sockaddr_in6));
+	bzero(&channel->v6, sizeof(struct sockaddr_in6));
 	list_init(&channel->list);
 	channel->recv_buffer = pbuffer_init();
 	channel->send_buffer = pbuffer_init();
