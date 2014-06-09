@@ -139,6 +139,15 @@ int pbuffer_strcat(pbuffer *buffer, char *data)
 	return(buffer->length);
 }
 
+void pbuffer_consume(pbuffer *buffer)
+{
+	/* see if we can move the data */
+	if (buffer->length < (buffer->data - buffer->start)) {
+		memmove(buffer->start, buffer->data, buffer->length);
+		buffer->data = buffer->start;
+	}
+}
+
 void pbuffer_shift(pbuffer *buffer, size_t size)
 {
 	if (size < 0)
@@ -147,11 +156,7 @@ void pbuffer_shift(pbuffer *buffer, size_t size)
 	buffer->data = (buffer->data + size);
 	buffer->length = (buffer->length - size);
 
-	/* see if we can move the data */
-	if (buffer->length < (buffer->data - buffer->start)) {
-		memmove(buffer->start, buffer->data, buffer->length);
-		buffer->data = buffer->start;
-	}
+	pbuffer_consume(buffer);
 }
 
 void pbuffer_safe_shift(pbuffer *buffer, size_t size)

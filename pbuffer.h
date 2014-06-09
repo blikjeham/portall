@@ -51,6 +51,9 @@ void pbuffer_add(pbuffer *, void *, size_t );
 void pbuffer_add_uint(pbuffer *, unsigned int );
 int pbuffer_strcat(pbuffer *, char *);
 
+/* Consume the beginning of the buffer */
+void pbuffer_consume(pbuffer *);
+
 /* Move the beginning of the buffer */
 void pbuffer_shift(pbuffer *, size_t );
 void pbuffer_safe_shift(pbuffer *, size_t );
