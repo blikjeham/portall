@@ -219,17 +219,14 @@ size_t extract_torv(pbuffer *buffer, unsigned int *dest)
 	unsigned int tmp = 0;
 	unsigned int holder = 0;
 	size_t bytes = 0;
-	while ((holder = extract_byte(buffer))) {
+
+	do {
+		tmp <<= 7;
+		holder = extract_byte(buffer);
 		bytes++;
-		if (holder & TLV_EXTEND) {
-			holder &= ~TLV_EXTEND;
-			tmp |= holder;
-			tmp = tmp << 7;
-		} else {
-			tmp |= holder;
-			break;
-		}
-	}
+		tmp |= holder & ~TLV_EXTEND;
+	} while (holder & TLV_EXTEND);
+
 	*dest = tmp;
 	return bytes;
 }
