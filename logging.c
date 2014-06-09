@@ -27,13 +27,33 @@ void debug(int level, const char *fmt, ...)
 	}
 }
 
-static void print_hexline(const unsigned char *payload, int len, int offset)
+/* debug messages without timestamps */
+void debug_nt(int level, const char *fmt, ...)
+{
+	if (loglevel >= level) {
+		va_list va;
+
+		va_start(va, fmt);
+		vfprintf(stderr, fmt, va);
+		fprintf(stderr, "\n");
+		va_end(va);
+	}
+}
+
+static void print_hexline(const unsigned char *payload, int len,
+				int offset, int indent)
 {
 	int i;
 	int gap;
 	const unsigned char *ch;
 
-	fprintf(stderr, "%08x   ", offset);
+	if (indent == 0)
+		fprintf(stderr, "%08x   ", offset);
+
+	while (indent-- > 0) {
+		fprintf(stderr, "  ");
+	}
+
 	ch = payload;
 	for (i=0; i<len; i++) {
 		fprintf(stderr, "%02x ", *ch);
@@ -65,7 +85,8 @@ static void print_hexline(const unsigned char *payload, int len, int offset)
 	return;
 }
 
-void hexdump(int level, const unsigned char *payload, size_t len)
+void hexdump_indent(int level, const unsigned char *payload, size_t len,
+		    int indent)
 {
 	if (loglevel < level)
 		return;
@@ -81,7 +102,7 @@ void hexdump(int level, const unsigned char *payload, size_t len)
 		return;
 
 	if (len <= line_width) {
-		print_hexline(ch, len, offset);
+		print_hexline(ch, len, offset, indent);
 		return;
 	}
 
@@ -90,7 +111,7 @@ void hexdump(int level, const unsigned char *payload, size_t len)
 		if (len_rem >= line_width)
 			line_len = line_width;
 
-		print_hexline(ch, line_len, offset);
+		print_hexline(ch, line_len, offset, indent);
 		len_rem = len_rem - line_len;
 		ch = ch + line_len;
 		offset = offset + line_width;
@@ -101,12 +122,53 @@ void hexdump(int level, const unsigned char *payload, size_t len)
 	return;
 }
 
+void hexdump(int level, const unsigned char *payload, size_t len)
+{
+	hexdump_indent(level, payload, len, 0);
+}
+
+void decode_psock_tlv(struct tlv *tlv)
+{
+	debug_nt(3, "  Type: %s (%d)", PT_NAMES[tlv->type], tlv->type);
+	debug_nt(3, "  Length: %d", tlv->length);
+	debug_nt(3, "  Value:");
+	hexdump_indent(3, tlv->value->data, tlv->length, 2);
+}
+
+void decode_psock_buffer(pbuffer *buffer, size_t len)
+{
+	struct tlv *tlv = tlv_init();
+	size_t bytes;
+	char *start = buffer->data;
+	size_t length = buffer->length;
+	while (len > 0) {
+		bytes = extract_torv(buffer, &tlv->type);
+		len -= bytes;
+		bytes = extract_torv(buffer, &tlv->length);
+		len -= bytes;
+		pbuffer_set(tlv->value, buffer->data, tlv->length);
+		decode_psock_tlv(tlv);
+		pbuffer_safe_shift(buffer, tlv->length);
+		len -= tlv->length;
+	}
+	buffer->data = start;
+	buffer->length = length;
+	tlv_free(tlv);
+}
+
 void decode_tlv(struct tlv *tlv)
 {
-	debug(3, "Type: %s (%d)", T_NAMES[tlv->type], tlv->type);
-	debug(3, "Length: %d", tlv->length);
-	debug(3, "Value:");
-	hexdump(3, tlv->value->data, tlv->length);
+	debug_nt(3, "Type: %s (%d)", T_NAMES[tlv->type], tlv->type);
+	debug_nt(3, "Length: %d", tlv->length);
+	switch (tlv->type) {
+	case T_SRC:
+	case T_DST:
+		decode_psock_buffer(tlv->value, tlv->length);
+		break;
+	default:
+		debug_nt(3, "Value:");
+		hexdump_indent(3, tlv->value->data, tlv->length, 1);
+	}
 }
 
 void decode_tlv_buffer(pbuffer *buffer, size_t len)
@@ -127,4 +189,5 @@ void decode_tlv_buffer(pbuffer *buffer, size_t len)
 	}
 	buffer->data = start;
 	buffer->length = length;
+	tlv_free(tlv);
 }

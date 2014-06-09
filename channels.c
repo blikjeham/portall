@@ -123,9 +123,11 @@ static int tcp_send(struct channel *channel)
 {
 	int ret;
 	pbuffer *b = channel->send_buffer;
-	DB("start sending");
-	if (!b || !b->length)
+
+	if (!b || !b->length) {
 		return -1;
+	}
+
 	DB("sending %zu bytes", b->length);
 
 	if ((ret = send(channel->fd, b->data, b->length, 0)) < 0) {
@@ -207,6 +209,7 @@ static int channel_accept(struct channel *channel)
 	return 0;
 }
 
+/* Remove the given pf, and move the last pf to the now empty slot */
 static void remove_pf(int index)
 {
 	int last = nfds - 1;
@@ -375,6 +378,7 @@ struct channel *new_connecter(struct channel *deque, char *ip, uint16_t port,
 	return channel;
 }
 
+/* Dispatch the ready queue and put channels back on the dequeue */
 int dispatch(struct channel *ready, struct channel *deque)
 {
 	struct channel *channel;
@@ -402,6 +406,7 @@ int dispatch(struct channel *ready, struct channel *deque)
 	return 0;
 }
 
+/* Poll for events and place the channels with events on the ready queue */
 int poll_events(struct channel *deque, struct channel *ready)
 {
 	int i;

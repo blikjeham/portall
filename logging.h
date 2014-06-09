@@ -10,6 +10,9 @@ extern int loglevel;
 void debug(int , const char *, ...)
 	__attribute__((format(printf, 2, 3)));
 
+void debug_nt(int , const char *, ...)
+	__attribute__((format(printf, 2, 3)));
+
 void hexdump(int , const unsigned char *, size_t );
 
 void decode_tlv_buffer(pbuffer *, size_t );
