@@ -32,7 +32,7 @@ static size_t pbuffer_grow(pbuffer *buffer, size_t size)
 		return(buffer->allocated);
 	}
 	size_t newsize = (buffer->allocated*2) | PBUFFER_MIN;
-	size_t offset = buffer->data - buffer->start;
+	size_t data_offset = buffer->data - buffer->start;
 
 	buffer->start = realloc(buffer->start, newsize);
 
@@ -41,12 +41,18 @@ static size_t pbuffer_grow(pbuffer *buffer, size_t size)
 		return(0);
 	}
 
-	buffer->data = buffer->start + offset;
+	buffer->data = buffer->start + data_offset;
+
+	/* Clear fresh memory */
+	/* Note that we don't have to clear the range
+	 * bpbuffer_end(buffer)..buffer->start + buffer->allocated,
+	 * as that is not part of the fresh memory.
+	 */
+	memset(buffer->start + buffer->allocated, 0,
+	       newsize - buffer->allocated);
 
 	buffer->allocated = newsize;
 
-	/* Clear fresh memory */
-	memset(pbuffer_end(buffer), 0, pbuffer_unused(buffer));
 	return(newsize);
 }
 
