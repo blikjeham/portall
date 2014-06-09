@@ -150,6 +150,7 @@ void pbuffer_shift(pbuffer *buffer, size_t size)
 	/* see if we can move the data */
 	if (buffer->length < (buffer->data - buffer->start)) {
 		memmove(buffer->start, buffer->data, buffer->length);
+		buffer->data = buffer->start;
 	}
 }
 
