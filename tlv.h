@@ -39,7 +39,9 @@ static inline void tlv_clear(struct tlv *tlv)
 	tlv->length = 0;
 	pbuffer_clear(tlv->value);
 }
-
+unsigned char extract_byte(pbuffer *);
+unsigned int extract_su(pbuffer *, size_t );
+char *extract_ip(struct psockaddr *, pbuffer *, size_t );
 void tlv_parse_tags(pbuffer *, struct forward_header *);
 void tlv_generate_tags(struct forward_header *, pbuffer *);
 int tlv_to_buffer(struct tlv *, pbuffer *);

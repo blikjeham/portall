@@ -37,7 +37,7 @@ static void set_ip(struct channel *channel, char *ip)
 }
 
 /* convert the IP address to string */
-static char *addrstr(struct psockaddr *addr)
+char *addrstr(struct psockaddr *addr)
 {
 	if (addr->af == AF_INET6) {
 		inet_ntop(addr->af, &(addr->v6.sin6_addr),

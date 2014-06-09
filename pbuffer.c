@@ -141,8 +141,11 @@ int pbuffer_strcat(pbuffer *buffer, char *data)
 
 void pbuffer_consume(pbuffer *buffer)
 {
-	memmove(buffer->start, buffer->data, buffer->length);
-	buffer->data = buffer->start;
+	/* only shift the remainder when there is enough space */
+	if (buffer->length < (buffer->data - buffer->start)) {
+		memmove(buffer->start, buffer->data, buffer->length);
+		buffer->data = buffer->start;
+	}
 }
 
 void pbuffer_shift(pbuffer *buffer, size_t size)

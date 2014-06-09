@@ -16,15 +16,25 @@ const char *T_NAMES[T_NUM] = {
 
 const char *PT_NAMES[PT_NUM] = {
 	[PT_FAMILY] = "FAMILY",
-	[PT_IPADDR] = "IP ADDRESS",
+	[PT_IPADDR] = "IPADDR",
 	[PT_PORT] = "PORT",
 };
 
-static unsigned char extract_byte(pbuffer *b)
+unsigned char extract_byte(pbuffer *b)
 {
 	unsigned char holder;
 	pbuffer_safe_extract(b, &holder, 1);
 	return holder;
+}
+
+unsigned int extract_su(pbuffer *b, size_t len)
+{
+	unsigned short ret = 0;
+	while (len-- > 0) {
+		ret <<= 8;
+		ret |= extract_byte(b);
+	}
+	return ntohs(ret);
 }
 
 static void ip_to_buffer(pbuffer *b, unsigned char *addr, size_t len)
@@ -36,13 +46,27 @@ static void ip_to_buffer(pbuffer *b, unsigned char *addr, size_t len)
 	}
 }
 
-static void extract_ip(struct psockaddr *psa, pbuffer *b, size_t len)
+char *extract_ip(struct psockaddr *psa, pbuffer *b, size_t len)
 {
+	int i;
 	if (len == 4) {
+		unsigned char *addr = (unsigned char *)&psa->v4.sin_addr;
+		psa->af = AF_INET;
+		psa->v4.sin_family = AF_INET;
+		for (i=0; i<len; i++) {
+			addr[i] = extract_byte(b);
+		}
 	} else if (len == 16) {
+		psa->af = AF_INET6;
+		psa->v6.sin6_family = AF_INET6;
+		for (i=0; i<len; i++) {
+			psa->v6.sin6_addr.s6_addr[i] = extract_byte(b);
+		}
 	} else {
 		DBERR("Cannot convert IP address (length != 4/16)");
+		return "";
 	}
+	return addrstr(psa);
 }
 
 static size_t psockaddr_to_tlv(struct psockaddr *psa, pbuffer *b)
@@ -112,13 +136,15 @@ void tlv_parse_tags(pbuffer *b, struct forward_header *fh)
 		buffer_to_tlv(b, tlv);
 		switch (tlv->type) {
 		case T_TAG:
-			if (tlv->value->length > MAX_TAG)
+			if (tlv->length > MAX_TAG)
 				return;
-			strncpy(fh->tag, tlv->value->data, MAX_TAG);
+			strncpy(fh->tag, tlv->value->data, tlv->length);
 			DB("Found tag: %s", fh->tag);
 			break;
 		case T_PROTOCOL:
-			fh->protocol = extract_byte(tlv->value);
+			/* Must be 1 byte long */
+			if (tlv->length == 1)
+				fh->protocol = extract_byte(tlv->value);
 			break;
 		case T_SRC:
 			tlv_to_psockaddr(tlv->value, &fh->src);

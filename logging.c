@@ -5,6 +5,7 @@
 #include <ctype.h>
 #include <sys/time.h>
 #include "logging.h"
+#include "channels.h"
 #include "tlv.h"
 
 int loglevel;
@@ -129,10 +130,23 @@ void hexdump(int level, const unsigned char *payload, size_t len)
 
 void decode_psock_tlv(struct tlv *tlv)
 {
-	debug_nt(3, "  Type: %s (%d)", PT_NAMES[tlv->type], tlv->type);
-	debug_nt(3, "  Length: %d", tlv->length);
-	debug_nt(3, "  Value:");
-	hexdump_indent(3, tlv->value->data, tlv->length, 2);
+	struct psockaddr psa;
+	debug_nt(3, "  %s (%d) [%d]", PT_NAMES[tlv->type], tlv->type, tlv->length);
+	switch (tlv->type) {
+	case PT_FAMILY:
+		debug_nt(3, "    %u", extract_byte(tlv->value));
+		break;
+	case PT_IPADDR:
+		debug_nt(3, "    %s", extract_ip(&psa, tlv->value,
+						 tlv->length));
+		break;
+	case PT_PORT:
+		debug_nt(3, "    %u", extract_su(tlv->value, tlv->length));
+		break;
+	default:
+		hexdump_indent(3, tlv->value->data, tlv->length, 2);
+		break;
+	}
 }
 
 void decode_psock_buffer(pbuffer *buffer, size_t len)
@@ -158,15 +172,13 @@ void decode_psock_buffer(pbuffer *buffer, size_t len)
 
 void decode_tlv(struct tlv *tlv)
 {
-	debug_nt(3, "Type: %s (%d)", T_NAMES[tlv->type], tlv->type);
-	debug_nt(3, "Length: %d", tlv->length);
+	debug_nt(3, "%s (%d) [%d]", T_NAMES[tlv->type], tlv->type, tlv->length);
 	switch (tlv->type) {
 	case T_SRC:
 	case T_DST:
 		decode_psock_buffer(tlv->value, tlv->length);
 		break;
 	default:
-		debug_nt(3, "Value:");
 		hexdump_indent(3, tlv->value->data, tlv->length, 1);
 	}
 }

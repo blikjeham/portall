@@ -109,6 +109,7 @@ struct channel *new_tcp_listener(struct channel *, char *, uint16_t );
 struct channel *new_connecter(struct channel *, char *, uint16_t , int );
 struct channel *connecter(struct channel *, char *, uint16_t );
 
+char *addrstr(struct psockaddr *);
 int dispatch(struct channel *, struct channel *);
 int poll_events(struct channel *, struct channel *);
 
