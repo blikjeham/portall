@@ -147,12 +147,7 @@ void pbuffer_consume(pbuffer *buffer)
 
 void pbuffer_shift(pbuffer *buffer, size_t size)
 {
-	if (size < 0)
-		return;
-	pbuffer_assure(buffer, size);
-	buffer->data = (buffer->data + size);
-	buffer->length = (buffer->length - size);
-
+	pbuffer_safe_shift(buffer, size);
 	pbuffer_consume(buffer);
 }
 
