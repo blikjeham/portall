@@ -261,7 +261,7 @@ void buffer_to_tlv(pbuffer *buffer, struct tlv *tlv)
 {
 	extract_torv(buffer, &tlv->type);
 	extract_torv(buffer, &tlv->length);
-	tlv->value = buffer;
+	pbuffer_copy(tlv->value, buffer, tlv->length);
 
 	pbuffer_consume(buffer);
 }
