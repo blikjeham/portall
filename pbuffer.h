@@ -25,7 +25,16 @@
 #define PBUFFER_MIN 120
 
 #define pbuffer_end(a) (a->data + a->length)
-#define pbuffer_unused(a) (a->allocated - a->length)
+
+/* pbuffer_unused returns the size available *after* the data portion
+ * in the buffer. To make it even more clear, let me add a picture:
+ *
+ *   <---             allocated            --->
+ *            <--- length ---> <--- unused --->
+ *  |........|................|................|
+ *  ^ start  ^ data           ^ end
+ */
+#define pbuffer_unused(a) (a->start + a->allocated - pbuffer_end(a))
 typedef struct pbuffer pbuffer;
 
 struct pbuffer {
