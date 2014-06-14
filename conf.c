@@ -28,7 +28,7 @@ static int create_output(struct conf_output *output)
 {
 	DBINFO("Creating new %s output channel on %s:%u, tag=%s",
 	       output->protocol == PROTO_TCP ? "TCP" : "UDP",
-	       output->src, output->sport, output->tag);
+	       output->dst, output->sport, output->tag);
 	output->channel = new_connecter(deque, output->dst, output->dport,
 					output->protocol);
 	if (!output->channel)
@@ -212,22 +212,26 @@ static int parse_input(char *line)
 static int parse_output(char *line)
 {
 	char *holder;
-	int ret;
+	int ret = 0;
 	struct conf_output *new = malloc(sizeof(struct conf_output));
 	list_init(&new->list);
 
 	holder = strsep(&line, "=");
-	if (!(new->protocol = parse_protocol(holder)))
-		ret = -1;
+	if (!(new->protocol = parse_protocol(holder))) {
+		ret = 1;
+	}
 
 	holder = strsep(&line, ",");
-	if (!(new->af = parse_ip_and_port(holder, new->dst, &new->dport)))
-		ret = -1;
+	if (!(new->af = parse_ip_and_port(holder, new->dst, &new->dport))) {
+		ret = 2;
+	}
 
-	if (!strncpy(new->tag, line, MAX_TAG))
-		ret = -1;
+	if (!strncpy(new->tag, line, MAX_TAG)) {
+		ret = 3;
+	}
 
 	if (ret) {
+		DBERR("Invalid output");
 		output_free(new);
 		return ret;
 	}
@@ -358,7 +362,8 @@ int get_config_files(int argc, char **argv)
 		}
 
 		if ((ret = parse_file(argv[i])) < 0) {
-			DBERR("Could not parse file %s", argv[i]);
+			DBERR("Could not parse file %s (ret = %d)", argv[i],
+				ret);
 			continue;
 		}
 	}

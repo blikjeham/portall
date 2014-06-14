@@ -25,7 +25,11 @@ struct channel *find_by_tag(char *tag)
 static struct channel *parse_tags(struct channel *channel)
 {
 	struct forward_header fh;
-	tlv_parse_tags(channel->recv_buffer, &fh);
+	pbuffer *b = channel->recv_buffer;
+	decode_tlv_buffer(b, b->length);
+	DB("%p, %p", b, b->data);
+	hexdump(3, (unsigned char *)b->data, b->length);
+	tlv_parse_tags(b, &fh);
 
 	if (fh.tag) {
 		return find_by_tag(fh.tag);
@@ -63,5 +67,6 @@ void forward_message(struct channel *in)
 	} else {
 		out = generate_tags(in);
 	}
-	out->pf->events |= EV_OUTPUT;
+	if (out)
+		out->pf->events |= EV_OUTPUT;
 }

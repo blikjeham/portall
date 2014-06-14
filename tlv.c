@@ -132,13 +132,17 @@ static void tlv_to_psockaddr(pbuffer *b, struct psockaddr *psa)
 void tlv_parse_tags(pbuffer *b, struct forward_header *fh)
 {
 	struct tlv *tlv = tlv_init();
+	DB("%p, %p", b, b->data);
+	hexdump(3, (unsigned char *)b->data, b->length);
 	while (b->length) {
 		buffer_to_tlv(b, tlv);
+		DB("type: %d", tlv->type);
 		switch (tlv->type) {
 		case T_TAG:
 			if (tlv->length > MAX_TAG)
 				return;
 			strncpy(fh->tag, tlv->value->data, tlv->length);
+			fh->tag[tlv->length] = '\0';
 			DB("Found tag: %s", fh->tag);
 			break;
 		case T_PROTOCOL:
@@ -262,7 +266,7 @@ void buffer_to_tlv(pbuffer *buffer, struct tlv *tlv)
 	extract_torv(buffer, &tlv->type);
 	extract_torv(buffer, &tlv->length);
 	tlv->value = buffer;
-
+	DB("t: %d, l: %d", tlv->type, tlv->length);
 	pbuffer_consume(buffer);
 }
 
