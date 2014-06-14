@@ -27,7 +27,6 @@ static struct channel *parse_tags(struct channel *channel)
 	struct forward_header fh;
 	pbuffer *b = channel->recv_buffer;
 	decode_tlv_buffer(b, b->length);
-	DB("%p, %p", b, b->data);
 	hexdump(3, (unsigned char *)b->data, b->length);
 	tlv_parse_tags(b, &fh);
 

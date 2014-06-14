@@ -35,6 +35,8 @@
  *  ^ start  ^ data           ^ end
  */
 #define pbuffer_unused(a) (a->start + a->allocated - pbuffer_end(a))
+#define pbuffer_offset(a) (a->data - a->start)
+
 typedef struct pbuffer pbuffer;
 
 struct pbuffer {
@@ -88,6 +90,9 @@ static inline void pbuffer_clear(pbuffer *b)
 	pbuffer_start(b);
 	b->length = 0;
 }
+
+/* Print statistics for the buffer */
+void pbuffer_stats(pbuffer *);
 
 /* Free the buffer data and the buffer itself. */
 void pbuffer_free(pbuffer *);

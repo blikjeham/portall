@@ -153,8 +153,9 @@ void decode_psock_buffer(pbuffer *buffer, size_t len)
 {
 	struct tlv *tlv = tlv_init();
 	size_t bytes;
-	char *start = buffer->data;
+	size_t offset = pbuffer_offset(buffer);
 	size_t length = buffer->length;
+
 	while (len > 0) {
 		bytes = extract_torv(buffer, &tlv->type);
 		len -= bytes;
@@ -165,7 +166,7 @@ void decode_psock_buffer(pbuffer *buffer, size_t len)
 		pbuffer_safe_shift(buffer, tlv->length);
 		len -= tlv->length;
 	}
-	buffer->data = start;
+	buffer->data = buffer->start + offset;
 	buffer->length = length;
 	tlv_free(tlv);
 }
@@ -187,8 +188,9 @@ void decode_tlv_buffer(pbuffer *buffer, size_t len)
 {
 	struct tlv *tlv = tlv_init();
 	size_t bytes;
-	char *start = buffer->data;
+	size_t offset = pbuffer_offset(buffer);
 	size_t length = buffer->length;
+
 	while (len > 0) {
 		bytes = extract_torv(buffer, &tlv->type);
 		len -= bytes;
@@ -199,7 +201,7 @@ void decode_tlv_buffer(pbuffer *buffer, size_t len)
 		pbuffer_safe_shift(buffer, tlv->length);
 		len -= tlv->length;
 	}
-	buffer->data = start;
+	buffer->data = buffer->start + offset;
 	buffer->length = length;
 	tlv_free(tlv);
 }

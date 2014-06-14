@@ -132,8 +132,6 @@ static void tlv_to_psockaddr(pbuffer *b, struct psockaddr *psa)
 void tlv_parse_tags(pbuffer *b, struct forward_header *fh)
 {
 	struct tlv *tlv = tlv_init();
-	DB("%p, %p", b, b->data);
-	hexdump(3, (unsigned char *)b->data, b->length);
 	while (b->length) {
 		buffer_to_tlv(b, tlv);
 		DB("type: %d", tlv->type);

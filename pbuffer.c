@@ -26,6 +26,8 @@
 #include "pbuffer.h"
 #include "logging.h"
 
+#define DB(fmt, args...) debug(4, "[pbuf]: " fmt, ##args)
+
 static size_t pbuffer_grow(pbuffer *buffer, size_t size)
 {
 	if (size < pbuffer_unused(buffer)) {
@@ -199,6 +201,14 @@ int pbuffer_copy(pbuffer *dst, pbuffer *src, size_t len)
 {
 	pbuffer_add(dst, src->data, len);
 	return 0;
+}
+
+void pbuffer_stats(pbuffer *buffer)
+{
+	DB("buffer = %p", buffer);
+	DB("start %p, data %p, offset %d, length: %d",
+	   buffer->start, buffer->data, pbuffer_offset(buffer),
+	   buffer->length);
 }
 
 void pbuffer_free(pbuffer *buffer)
