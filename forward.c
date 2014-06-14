@@ -9,6 +9,7 @@
 extern struct conf_tunnel *tunnel;
 
 #define DB(fmt, args...) debug(3, "[fwrd]: " fmt, ##args)
+#define DBERR(fmt, args...) debug(1, "[fwrd]: " fmt, ##args)
 
 struct channel *find_by_tag(char *tag)
 {
@@ -24,6 +25,7 @@ struct channel *find_by_tag(char *tag)
 
 static struct channel *parse_tags(struct channel *channel)
 {
+	struct channel *out = NULL;
 	struct forward_header fh;
 	pbuffer *b = channel->recv_buffer;
 	decode_tlv_buffer(b, b->length);
@@ -31,10 +33,15 @@ static struct channel *parse_tags(struct channel *channel)
 	tlv_parse_tags(b, &fh);
 
 	if (fh.tag) {
-		return find_by_tag(fh.tag);
+		out = find_by_tag(fh.tag);
+		if (fh.payload->length) {
+			pbuffer_copy(out->send_buffer, fh.payload,
+				     fh.payload->length);
+		}
+	} else {
+		DBERR("The packet did not contain a tag; dropping");
 	}
-	DB("No tag found");
-	return NULL;
+	return out;
 }
 
 /* generate tags, and return the tunnel */
@@ -66,6 +73,7 @@ void forward_message(struct channel *in)
 	} else {
 		out = generate_tags(in);
 	}
-	if (out)
+	if (out) {
 		out->pf->events |= EV_OUTPUT;
+	}
 }

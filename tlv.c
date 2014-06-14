@@ -134,7 +134,6 @@ void tlv_parse_tags(pbuffer *b, struct forward_header *fh)
 	struct tlv *tlv = tlv_init();
 	while (b->length) {
 		buffer_to_tlv(b, tlv);
-		DB("type: %d", tlv->type);
 		switch (tlv->type) {
 		case T_TAG:
 			if (tlv->length > MAX_TAG)
@@ -156,8 +155,13 @@ void tlv_parse_tags(pbuffer *b, struct forward_header *fh)
 			break;
 		case T_PAYLOAD:
 			/* found payload */
+			DB("Found payload (%u)", tlv->length);
+			hexdump(3, tlv->value->data, tlv->value->length);
+			fh->payload = pbuffer_init();
+			pbuffer_copy(fh->payload, tlv->value, tlv->length);
 			break;
 		}
+		tlv_clear(tlv);
 	}
 	tlv_free(tlv);
 }
@@ -266,7 +270,7 @@ void buffer_to_tlv(pbuffer *buffer, struct tlv *tlv)
 
 	pbuffer_copy(tlv->value, buffer, tlv->length);
 
-	pbuffer_consume(buffer);
+	pbuffer_shift(buffer, tlv->length);
 }
 
 struct tlv *tlv_init(void)

@@ -129,6 +129,7 @@ static int tcp_send(struct channel *channel)
 	}
 
 	DB("sending %zu bytes", b->length);
+	hexdump(3, b->data, b->length);
 
 	if ((ret = send(channel->fd, b->data, b->length, 0)) < 0) {
 		perror("send");
