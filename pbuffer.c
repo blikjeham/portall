@@ -161,7 +161,10 @@ void pbuffer_safe_shift(pbuffer *buffer, size_t size)
 	if (size <= 0)
 		return;
 
-	pbuffer_assure(buffer, size);
+	/* can't shift past the end of the buffer */
+	if (size >= buffer->length)
+		return;
+
 	buffer->data = (buffer->data + size);
 	buffer->length = (buffer->length - size);
 }
