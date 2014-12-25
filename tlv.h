@@ -19,6 +19,7 @@ enum t_types {
 	T_SRC, /* CONSTRUCT of psock_types */
 	T_DST, /* CONSTRUCT of psock_types */
 	T_PAYLOAD,
+	T_COMMAND, /* CONSTRUCT of ct_types */
 	T_NUM,
 };
 
@@ -30,8 +31,16 @@ enum psock_types {
 	PT_NUM,
 };
 
+/* tlv types for command */
+enum ct_types {
+	CT_KEEPALIVE = 1,
+	CT_ALIVE,
+	CT_NUM,
+};
+
 extern const char *T_NAMES[T_NUM];
 extern const char *PT_NAMES[PT_NUM];
+extern const char *CT_NAMES[CT_NUM];
 
 static inline void tlv_clear(struct tlv *tlv)
 {

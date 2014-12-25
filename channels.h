@@ -10,6 +10,7 @@
 #include "pbuffer.h"
 #include "list.h"
 #include "conf.h"
+#include "timer.h"
 
 #define MAX_CONN 100
 
@@ -64,6 +65,9 @@ struct channel {
 	char *name;
 
 	struct pollfd *pf;
+
+	struct timer *timer;
+
 	/* callback */
 	int (*on_accept)(struct channel *);
 	int (*on_recv)(struct channel *);
@@ -106,6 +110,11 @@ static inline socklen_t psockaddr_len(struct psockaddr *psock)
 		return sizeof(psock->v6);
 	else
 		return sizeof(psock->v4);
+}
+
+static inline void queue_send(struct channel *c)
+{
+	c->pf->events |= EV_OUTPUT;
 }
 
 struct channel *new_udp_listener(struct channel *, char *, uint16_t );

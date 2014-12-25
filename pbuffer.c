@@ -130,6 +130,11 @@ void pbuffer_add_uint(pbuffer *buffer, unsigned int num)
 	pbuffer_add(buffer, &tmp, sizeof(unsigned int));
 }
 
+void pbuffer_add_byte(pbuffer *buffer, unsigned char c)
+{
+	pbuffer_add(buffer, &c, 1);
+}
+
 int pbuffer_strcat(pbuffer *buffer, char *data)
 {
 	size_t size;

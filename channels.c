@@ -422,7 +422,7 @@ int poll_events(struct channel *deque, struct channel *ready)
 	if (ret <= 0) {
 		idle++;
 		DB("idle %d", idle);
-		return 0;
+		goto end;
 	}
 
 	for (i = 0; i < nfds; i++) {
@@ -451,6 +451,9 @@ int poll_events(struct channel *deque, struct channel *ready)
 			channel->flags |= CHAN_SEND;
 	}
 
+end:
+	timer_check();
+
 	return ret;
 }
 
@@ -460,4 +463,6 @@ void channel_init(struct channel *channel)
 	list_init(&channel->list);
 	channel->recv_buffer = pbuffer_init();
 	channel->send_buffer = pbuffer_init();
+	channel->timer = timer_init();
+	channel->timer->channel = channel;
 }

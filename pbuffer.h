@@ -60,6 +60,7 @@ void pbuffer_add_sprintf(pbuffer *buffer, char *fmt, ...)
 	__attribute__((format(printf,2,3)));
 void pbuffer_add(pbuffer *, void *, size_t );
 void pbuffer_add_uint(pbuffer *, unsigned int );
+void pbuffer_add_byte(pbuffer *, unsigned char );
 int pbuffer_strcat(pbuffer *, char *);
 
 /* Consume the beginning of the buffer */

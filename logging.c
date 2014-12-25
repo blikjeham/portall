@@ -29,11 +29,14 @@ void debug(int level, const char *fmt, ...)
 }
 
 /* debug messages without timestamps */
-void debug_nt(int level, const char *fmt, ...)
+void debug_nt(int level, int indent, const char *fmt, ...)
 {
 	if (loglevel >= level) {
 		va_list va;
 
+		while (indent--) {
+			fprintf(stderr, "  ");
+		}
 		va_start(va, fmt);
 		vfprintf(stderr, fmt, va);
 		fprintf(stderr, "\n");
@@ -128,20 +131,31 @@ void hexdump(int level, const unsigned char *payload, size_t len)
 	hexdump_indent(level, payload, len, 0);
 }
 
-void decode_psock_tlv(struct tlv *tlv)
+static void get_tlvs(struct pbuffer *, size_t ,
+		     void (*)(struct tlv *));
+
+static void debug_tlv(int indent, struct tlv *tlv, const char **names)
+{
+	debug_nt(3, indent, "%s (%d) [%d]", names[tlv->type], tlv->type,
+		 tlv->length);
+}
+
+static void decode_ptypes(struct tlv *tlv)
 {
 	struct psockaddr psa;
-	debug_nt(3, "  %s (%d) [%d]", PT_NAMES[tlv->type], tlv->type, tlv->length);
+
+	debug_tlv(1, tlv, PT_NAMES);
+
 	switch (tlv->type) {
 	case PT_FAMILY:
-		debug_nt(3, "    %u", extract_byte(tlv->value));
+		debug_nt(3, 2, "%u", extract_byte(tlv->value));
 		break;
 	case PT_IPADDR:
-		debug_nt(3, "    %s", extract_ip(&psa, tlv->value,
+		debug_nt(3, 2, "%s", extract_ip(&psa, tlv->value,
 						 tlv->length));
 		break;
 	case PT_PORT:
-		debug_nt(3, "    %u", extract_su(tlv->value, tlv->length));
+		debug_nt(3, 2, "%u", extract_su(tlv->value, tlv->length));
 		break;
 	default:
 		hexdump_indent(3, tlv->value->data, tlv->length, 2);
@@ -149,42 +163,37 @@ void decode_psock_tlv(struct tlv *tlv)
 	}
 }
 
-void decode_psock_buffer(pbuffer *buffer, size_t len)
+static void decode_ctypes(struct tlv *tlv)
 {
-	struct tlv *tlv = tlv_init();
-	size_t bytes;
-	size_t offset = pbuffer_offset(buffer);
-	size_t length = buffer->length;
+	debug_tlv(1, tlv, CT_NAMES);
 
-	while (len > 0) {
-		bytes = extract_torv(buffer, &tlv->type);
-		len -= bytes;
-		bytes = extract_torv(buffer, &tlv->length);
-		len -= bytes;
-		pbuffer_set(tlv->value, buffer->data, tlv->length);
-		decode_psock_tlv(tlv);
-		pbuffer_safe_shift(buffer, tlv->length);
-		len -= tlv->length;
+	switch (tlv->type) {
+	case CT_KEEPALIVE:
+	case CT_ALIVE:
+		break;
+	default:
+		hexdump_indent(3, tlv->value->data, tlv->length, 2);
+		break;
 	}
-	buffer->data = buffer->start + offset;
-	buffer->length = length;
-	tlv_free(tlv);
 }
 
-void decode_tlv(struct tlv *tlv)
+static void decode_types(struct tlv *tlv)
 {
-	debug_nt(3, "%s (%d) [%d]", T_NAMES[tlv->type], tlv->type, tlv->length);
+	debug_tlv(0, tlv, T_NAMES);
 	switch (tlv->type) {
 	case T_SRC:
 	case T_DST:
-		decode_psock_buffer(tlv->value, tlv->length);
+		get_tlvs(tlv->value, tlv->length, &decode_ptypes);
 		break;
+	case T_COMMAND:
+		get_tlvs(tlv->value, tlv->length, &decode_ctypes);
 	default:
 		hexdump_indent(3, tlv->value->data, tlv->length, 1);
 	}
 }
 
-void decode_tlv_buffer(pbuffer *buffer, size_t len)
+static void get_tlvs(struct pbuffer *buffer, size_t len,
+		     void (*callback)(struct tlv *))
 {
 	struct tlv *tlv = tlv_init();
 	size_t bytes;
@@ -197,11 +206,19 @@ void decode_tlv_buffer(pbuffer *buffer, size_t len)
 		bytes = extract_torv(buffer, &tlv->length);
 		len -= bytes;
 		pbuffer_set(tlv->value, buffer->data, tlv->length);
-		decode_tlv(tlv);
+
+		if (callback)
+			callback(tlv);
+
 		pbuffer_safe_shift(buffer, tlv->length);
 		len -= tlv->length;
 	}
 	buffer->data = buffer->start + offset;
 	buffer->length = length;
 	tlv_free(tlv);
+}
+
+void decode_tlv_buffer(pbuffer *buffer, size_t len)
+{
+	get_tlvs(buffer, len, &decode_types);
 }

@@ -74,6 +74,6 @@ void forward_message(struct channel *in)
 		out = generate_tags(in);
 	}
 	if (out) {
-		out->pf->events |= EV_OUTPUT;
+		queue_send(out);
 	}
 }

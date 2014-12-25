@@ -31,6 +31,13 @@ static inline void list_unlink(struct list *node)
 	node->next->prev = node->prev;
 }
 
+static inline int list_is_linked(struct list *node)
+{
+	if ((node->next != node) && node->prev != node)
+		return 1;
+	return 0;
+}
+
 static inline void list_init(struct list *node)
 {
 	list_link(node, node);

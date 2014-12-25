@@ -23,6 +23,7 @@ DEPS += logging.h
 DEPS += pbuffer.h
 DEPS += tlv.h
 DEPS += forward.h
+DEPS += timer.h
 
 OBJ = channels.o
 OBJ += conf.o
@@ -30,6 +31,7 @@ OBJ += logging.o
 OBJ += pbuffer.o
 OBJ += tlv.o
 OBJ += forward.o
+OBJ += timer.o
 
 MCOBJ = main.o $(OBJ)
 

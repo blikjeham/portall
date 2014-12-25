@@ -6,6 +6,7 @@
 #include "conf.h"
 #include "channels.h"
 #include "logging.h"
+#include "timer.h"
 
 struct conf_input *deq_input;
 struct conf_output *deq_output;
@@ -95,6 +96,7 @@ int create_tunnel(struct conf_tunnel *tunnel)
 	}
 	tunnel->channel->flags |= CHAN_TAGGED;
 	tunnel->channel->on_close = tunnel_close;
+	timer_arm(tunnel->channel->timer, 5, keep_alive);
 	return 0;
 }
 

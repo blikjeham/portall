@@ -9,15 +9,21 @@
 const char *T_NAMES[T_NUM] = {
 	[T_TAG] = "TAG",
 	[T_PROTOCOL] = "PROTOCOL",
-	[T_SRC] = "SOURCE",
-	[T_DST] = "DESTINATION",
+	[T_SRC] = "SRC",
+	[T_DST] = "DST",
 	[T_PAYLOAD] = "PAYLOAD",
+	[T_COMMAND] = "COMMAND",
 };
 
 const char *PT_NAMES[PT_NUM] = {
 	[PT_FAMILY] = "FAMILY",
 	[PT_IPADDR] = "IPADDR",
 	[PT_PORT] = "PORT",
+};
+
+const char *CT_NAMES[CT_NUM] = {
+	[CT_KEEPALIVE] = "KEEPALIVE",
+	[CT_ALIVE] = "ALIVE",
 };
 
 unsigned char extract_byte(pbuffer *b)
