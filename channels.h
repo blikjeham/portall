@@ -74,11 +74,15 @@ struct channel {
 	pbuffer *send_buffer;
 };
 
+extern struct channel *deque, *ready;
+
 #define channel_of(ptr) containerof(ptr, struct channel, list)
 
 #define for_each_channel(deque, ptr) for (ptr = channel_of(deque->list.next); \
 					  ptr != deque; \
 					  ptr = channel_of(ptr->list.next))
+
+#define DISPATCHER while(poll_events(deque,ready)>=0){dispatch(ready, deque);}
 
 static inline char *psockaddr_string(struct psockaddr *psock)
 {
@@ -114,5 +118,19 @@ int dispatch(struct channel *, struct channel *);
 int poll_events(struct channel *, struct channel *);
 
 void channel_init(struct channel *);
+
+static inline void channels_init(void)
+{
+	extern unsigned int idle;
+	extern uint nfds;
+
+	deque = malloc(sizeof(struct channel));
+	channel_init(deque);
+	ready = malloc(sizeof(struct channel));
+	channel_init(ready);
+
+	idle = 0;
+	nfds = 0;
+}
 
 #endif /* CHANNELS_H */

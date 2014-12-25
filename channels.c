@@ -14,7 +14,7 @@
 
 struct pollfd pf[MAX_CONN];
 struct channel *channel_of_pf[MAX_CONN];
-struct channel *deque;
+struct channel *deque, *ready;
 uint nfds;
 unsigned int idle;
 

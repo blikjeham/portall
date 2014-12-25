@@ -24,11 +24,16 @@ static int help(void)
 	return -1;
 }
 
+static char *protocol_str(int protocol)
+{
+	return protocol == PROTO_TCP ? "TCP" : "UDP";
+}
+
 static int create_output(struct conf_output *output)
 {
 	DBINFO("Creating new %s output channel on %s:%u, tag=%s",
-	       output->protocol == PROTO_TCP ? "TCP" : "UDP",
-	       output->dst, output->sport, output->tag);
+	       protocol_str(output->protocol), output->dst,
+	       output->dport, output->tag);
 	output->channel = new_connecter(deque, output->dst, output->dport,
 					output->protocol);
 	if (!output->channel)
@@ -40,8 +45,8 @@ static int create_output(struct conf_output *output)
 static int create_input(struct conf_input *input)
 {
 	DBINFO("Creating new %s input channel on %s:%u, tag=%s",
-	       input->protocol == PROTO_TCP ? "TCP" : "UDP",
-	       input->ip, input->port, input->tag);
+	       protocol_str(input->protocol), input->ip,
+	       input->port, input->tag);
 	if (input->protocol == PROTO_TCP)
 		input->channel = new_tcp_listener(deque, input->ip,
 						  input->port);
